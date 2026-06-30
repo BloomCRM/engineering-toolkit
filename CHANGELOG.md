@@ -6,6 +6,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-07-01
+
+### Added
+- `build-project-model` skill (`/eng:build-project-model`) — classifies and
+  drafts the backlog with the reviewer agents, then deterministically normalizes
+  it via `planning-model.mjs` (guaranteed Tech-Debt and Bug epics, default
+  Definition of Done, planning items derived from the Knowledge Model).
+
 ## [0.4.1] - 2026-07-01
 
 ### Changed
