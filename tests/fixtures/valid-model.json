@@ -1,0 +1,30 @@
+{
+  "schemaVersion": "1.0",
+  "generatedAt": "2026-06-30T00:00:00Z",
+  "source": { "repo": "example/repo", "commit": "abc123", "branch": "main" },
+  "knowledgeModel": {
+    "domains": [
+      { "id": "calendar", "name": "Calendar", "status": "partial", "dependsOn": ["bookings"], "sources": [] }
+    ],
+    "architecture": [], "techDebt": [], "infrastructure": [], "security": [], "risks": []
+  },
+  "planningModel": {
+    "phases": ["MVP", "Production Ready", "Public Release", "Scaling", "Enterprise", "AI"],
+    "items": [ { "ref": "calendar", "phase": "MVP", "type": "feature", "roadmapStatus": "partial", "priority": "high" } ]
+  },
+  "backlog": {
+    "epics": [
+      {
+        "id": "epic-calendar", "trackerKey": null, "phase": "MVP", "type": "feature", "title": "Calendar",
+        "stories": [
+          {
+            "id": "story-cal-day-view", "trackerKey": null, "title": "Day view",
+            "acceptanceCriteria": [ { "given": "a master with bookings", "when": "I open the day view", "then": "I see the bookings on the timeline" } ],
+            "definitionOfDone": ["code", "unit", "integration", "docs", "review", "ci"],
+            "tasks": [ { "id": "task-cal-day-be", "trackerKey": null, "category": "backend", "subtasks": [] } ]
+          }
+        ]
+      }
+    ]
+  }
+}
