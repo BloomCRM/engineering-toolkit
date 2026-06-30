@@ -23,6 +23,7 @@ structured engineering backlog and synchronizes it to your issue tracker.
 
 | Skill | Purpose |
 |---|---|
+| `/eng:skills` | List every skill in the plugin with a short description |
 | `/eng:knowledge-store` | Init / validate / inspect / migrate the project model |
 
 > More skills (`setup-toolkit`, `analyze-project`, `build-project-model`,
