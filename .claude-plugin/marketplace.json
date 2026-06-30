@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "engineering-intelligence",
+  "description": "Engineering Intelligence Platform — project-management plugins for Claude Code.",
+  "owner": { "name": "Volodymyr Kostyrko" },
+  "plugins": [
+    {
+      "name": "eng",
+      "source": "./",
+      "description": "Engineering Intelligence toolkit"
+    }
+  ]
+}
