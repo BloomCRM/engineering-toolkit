@@ -6,6 +6,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-07-01
+
+### Added
+- `analyze-project` skill (`/eng:analyze-project`) and an 8-agent reviewer panel
+  in `agents/`, with a deterministic `knowledge-model.mjs` merge into the
+  Knowledge Model and an adversarial final review.
+- `references/findings-schema.md` — the JSON contract every agent returns.
+
 ## [0.3.0] - 2026-06-30
 
 ### Added
