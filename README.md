@@ -23,6 +23,7 @@ structured engineering backlog and synchronizes it to your issue tracker.
 
 | Skill | Purpose |
 |---|---|
+| `/eng:setup-toolkit` | Choose a tracker, detect its MCP, verify the project, save config |
 | `/eng:skills` | List every skill in the plugin with a short description |
 | `/eng:knowledge-store` | Init / validate / inspect / migrate the project model |
 

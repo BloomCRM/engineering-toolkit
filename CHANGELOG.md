@@ -6,6 +6,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-06-30
+
+### Added
+- `setup-toolkit` skill (`/eng:setup-toolkit`) — provider selection, runtime MCP
+  detection, verify-only Jira project check, and `.eng/config.json` persistence,
+  backed by a zero-dependency, unit-tested `config.mjs`.
+- Provider adapters: `jira.md` (sync-ready) plus stubs for `azure-devops`,
+  `github-projects`, `linear`.
+
 ## [0.2.0] - 2026-06-30
 
 ### Added
