@@ -1,0 +1,79 @@
+// Zero-dependency planning-model + backlog normalization for project-model.json.
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { DEFAULT_DOD, validateModel } from '../../knowledge-store/scripts/store.mjs';
+
+export const PHASES = ['MVP', 'Production Ready', 'Public Release', 'Scaling', 'Enterprise', 'AI'];
+export const TECH_DEBT_EPIC_ID = 'epic-tech-debt';
+export const BUG_EPIC_ID = 'epic-bugs';
+
+export function ensureDedicatedEpics(epics) {
+  const out = Array.isArray(epics) ? [...epics] : [];
+  if (!out.some(e => e && e.type === 'techdebt')) {
+    out.push({ id: TECH_DEBT_EPIC_ID, trackerKey: null, phase: 'MVP', type: 'techdebt', title: 'Technical Debt', stories: [] });
+  }
+  if (!out.some(e => e && e.type === 'bug')) {
+    out.push({ id: BUG_EPIC_ID, trackerKey: null, phase: 'MVP', type: 'bug', title: 'Bug Fixes', stories: [] });
+  }
+  return out;
+}
+
+export function applyDefaultDoD(epics) {
+  for (const epic of epics || []) {
+    for (const story of epic.stories || []) {
+      if (!Array.isArray(story.definitionOfDone) || story.definitionOfDone.length === 0) {
+        story.definitionOfDone = [...DEFAULT_DOD];
+      }
+    }
+  }
+  return epics;
+}
+
+export function buildPlanningItems(knowledgeModel, decisions = {}) {
+  const items = [];
+  for (const d of knowledgeModel?.domains || []) {
+    const dec = decisions[d.id] || {};
+    items.push({
+      ref: d.id,
+      phase: PHASES.includes(dec.phase) ? dec.phase : 'MVP',
+      type: 'feature',
+      roadmapStatus: d.status || 'unknown',
+      priority: dec.priority || 'medium'
+    });
+  }
+  for (const td of knowledgeModel?.techDebt || []) {
+    items.push({ ref: td.id, phase: 'MVP', type: 'techdebt', roadmapStatus: 'planned', priority: td.severity || 'medium' });
+  }
+  return items;
+}
+
+export function normalizeModel(model, { decisions = {} } = {}) {
+  const m = { ...model };
+  m.backlog = m.backlog && Array.isArray(m.backlog.epics) ? m.backlog : { epics: [] };
+  m.backlog.epics = applyDefaultDoD(ensureDedicatedEpics(m.backlog.epics));
+  m.planningModel = { phases: PHASES, items: buildPlanningItems(m.knowledgeModel || {}, decisions) };
+  return m;
+}
+
+function isMain() {
+  return process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
+}
+
+if (isMain()) {
+  const [, , cmd, file] = process.argv;
+  try {
+    if (cmd === 'normalize') {
+      const model = JSON.parse(readFileSync(file, 'utf8'));
+      const n = normalizeModel(model);
+      const errors = validateModel(n);
+      if (errors.length) { console.error('INVALID after normalize:\n' + errors.map(e => ' - ' + e).join('\n')); process.exit(1); }
+      console.log(JSON.stringify(n, null, 2));
+    } else {
+      console.error('usage: planning-model.mjs normalize <model.json>');
+      process.exit(2);
+    }
+  } catch (err) {
+    console.error('ERROR: ' + err.message);
+    process.exit(1);
+  }
+}
