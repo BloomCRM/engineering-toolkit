@@ -8,11 +8,12 @@ const collapse = (s) => String(s || '').replace(/\s+/g, ' ').trim();
 
 // Minimal YAML-frontmatter reader: supports inline values and block scalars
 // (`key: |` / `key: >`). Stops a block at the next column-0 key.
-export function parseFrontmatter(text) {
+export function parseFrontmatter(raw) {
+  const text = String(raw || '').replace(/\r\n?/g, '\n'); // normalize CRLF / lone CR
   if (!text.startsWith('---')) return {};
   const end = text.indexOf('\n---', 3);
   if (end === -1) return {};
-  const lines = text.slice(3, end).replace(/^\r?\n/, '').split(/\r?\n/);
+  const lines = text.slice(3, end).replace(/^\n/, '').split('\n');
   const map = {};
   for (let i = 0; i < lines.length; i++) {
     const m = lines[i].match(/^([A-Za-z][\w-]*):\s?(.*)$/);

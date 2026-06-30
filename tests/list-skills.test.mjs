@@ -12,6 +12,11 @@ test('parseFrontmatter: inline description', () => {
   assert.equal(parseFrontmatter('---\nname: a\ndescription: Hello there.\n---\nbody').description, 'Hello there.');
 });
 
+test('parseFrontmatter: tolerates CRLF with inline description on the last line', () => {
+  const t = '---\r\nname: a\r\ndescription: Inline desc.\r\n---\r\nbody\r\n';
+  assert.equal(parseFrontmatter(t).description, 'Inline desc.');
+});
+
 test('listSkills: parses inline and block-scalar descriptions, sorted by name', () => {
   const s = listSkills(sample);
   assert.deepEqual(s.map(x => x.name), ['alpha', 'beta']);
