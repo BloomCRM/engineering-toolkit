@@ -6,6 +6,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-07-01
+
+### Changed
+- `setup-toolkit` is now idempotent and non-blocking: an optional
+  `claude plugin update eng` step, and an MCP step that — even when tools are
+  detected — lets the user use them, re-detect, or **skip** (status stays
+  `incomplete`, analyze/build keep working offline, sync stays blocked).
+
 ## [0.4.0] - 2026-07-01
 
 ### Added
