@@ -6,6 +6,18 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-07-01
+
+### Added
+- `detect-changes` skill (`/eng:detect-changes`) — diffs the repo since the
+  model's `source.commit`, maps changed files onto Knowledge Model entries via
+  their `sources`, and reports the stale entries with an incremental re-analysis
+  recommendation. Deterministic core in `change-plan.mjs`.
+
+### Notes
+- Completes the v1 skill set: setup-toolkit, analyze-project, build-project-model,
+  sync-tracker, detect-changes, knowledge-store, skills.
+
 ## [0.7.0] - 2026-07-01
 
 ### Added
