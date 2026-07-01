@@ -6,6 +6,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-07-02
+
+### Added
+- `run` skill (`/eng:run`) — a guided, approval-driven orchestrator that walks
+  the pipeline one step at a time, computing the next step from the project's
+  current state and pausing for approval between every stage. The tracker write
+  keeps its own dry-run + explicit confirmation. Resumable. Deterministic state
+  machine in `pipeline.mjs`.
+
 ## [0.8.0] - 2026-07-01
 
 ### Added

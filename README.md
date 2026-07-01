@@ -23,6 +23,7 @@ structured engineering backlog and synchronizes it to your issue tracker.
 
 | Skill | Purpose |
 |---|---|
+| `/eng:run` | Guided, approval-gated pipeline (setup -> analyze -> build -> sync) |
 | `/eng:analyze-project` | Multi-agent analysis of the repo into the Knowledge Model |
 | `/eng:build-project-model` | Knowledge Model -> Planning Model + backlog (epics/stories/tasks) |
 | `/eng:sync-tracker` | Push the backlog to Jira (dry-run default; confirm before write) |
