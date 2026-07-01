@@ -25,6 +25,7 @@ structured engineering backlog and synchronizes it to your issue tracker.
 |---|---|
 | `/eng:analyze-project` | Multi-agent analysis of the repo into the Knowledge Model |
 | `/eng:build-project-model` | Knowledge Model -> Planning Model + backlog (epics/stories/tasks) |
+| `/eng:sync-tracker` | Push the backlog to Jira (dry-run default; confirm before write) |
 | `/eng:setup-toolkit` | Choose a tracker, detect its MCP, verify the project, save config |
 | `/eng:skills` | List every skill in the plugin with a short description |
 | `/eng:knowledge-store` | Init / validate / inspect / migrate the project model |

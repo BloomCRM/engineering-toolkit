@@ -6,6 +6,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-07-01
+
+### Added
+- `sync-tracker` skill (`/eng:sync-tracker`) — projects the backlog to Jira via
+  the adapter with a deterministic `sync-plan.mjs` reconciliation planner
+  (parent-first create/update, `eng-id:<id>` labels for idempotent re-sync).
+  Modes: report, dry-run (default), sync, validate. `sync` always previews the
+  diff and requires confirmation before writing.
+
 ## [0.6.0] - 2026-07-01
 
 ### Changed
