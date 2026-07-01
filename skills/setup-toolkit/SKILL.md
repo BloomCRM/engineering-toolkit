@@ -8,7 +8,7 @@ when_to_use: |
   Trigger on "setup eng", "configure the toolkit", "connect Jira", "set up the
   tracker", "/eng:setup-toolkit", or when another skill reports the config is
   missing.
-allowed-tools: Bash(node *), Bash(claude plugin *)
+allowed-tools: Bash(node *), Bash(claude plugin *), Bash(claude mcp *), Bash(docker *)
 ---
 
 # setup-toolkit
@@ -45,10 +45,27 @@ MCP no longer stops setup; the user can skip it and wire the tracker later.
      2. **Re-detect** — e.g. after connecting a different MCP; search again.
      3. **Skip for now** — leave `mcp.available = false`; status will be
         `incomplete` (analyze/build still work offline; sync stays blocked).
-   - **If none found:** offer two choices:
-     1. **Connect now** — print the adapter's connection instructions and tell the
-        user to configure the MCP and **restart Claude**, then re-run setup.
-     2. **Skip for now** — proceed offline; status `incomplete`.
+   - **If none found → connect it for the user (automated).** Do not just print
+     instructions. Present a **multiple-choice popup** (use the AskUserQuestion
+     tool) asking how to connect, then run the commands yourself:
+     1. **Atlassian official (Rovo)** — recommended for Jira Cloud, OAuth, **no
+        token needed**. Run the SSE `claude mcp add` command from the adapter's
+        Connection section yourself. The Atlassian OAuth consent opens in the
+        browser on the next Claude start.
+     2. **Community mcp-atlassian** — Docker + API token; good for Server/Data
+        Center or a token preference. First check Docker: `docker --version`. If
+        it is missing, say so and steer to option 1. Otherwise ask the user for
+        the Jira site URL, account email, and API token (create one at
+        `https://id.atlassian.com/manage-profile/security/api-tokens`), then run
+        the exact `claude mcp add atlassian -- docker run …` command from the
+        adapter's Connection section with those values filled in. **Show the
+        command first with the token masked**, then run it.
+     3. **Skip for now** — proceed offline; status `incomplete`.
+
+     After you run an `add` command, the new MCP tools only load on the **next**
+     Claude session. So finish setup here with status `incomplete`, tell the user
+     to **fully restart Claude and re-run `/eng:setup-toolkit`** — the re-run will
+     detect the tools, verify the project, and write a `ready` config.
 
 5. **Verify-only (Jira)** — only if an MCP is in use (not skipped). Using the
    detected tools:

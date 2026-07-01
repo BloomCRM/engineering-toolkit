@@ -81,3 +81,41 @@ re-run setup.
 - Subtasks require the parent to exist first (create order: Epic → Story → Task →
   Sub-task).
 - Rate limits apply on Jira Cloud; batch conservatively.
+
+## 7. Connection (automated setup)
+
+`setup-toolkit` runs these itself after the user picks an option in a popup.
+Both require a **full Claude restart** afterwards so the MCP tools load.
+
+### Option A — Atlassian official (Rovo Remote MCP) — recommended for Jira Cloud
+
+No token; the user authorizes via OAuth in the browser on the next start.
+Detected tools look like `getVisibleJiraProjects`, `createJiraIssue`,
+`searchJiraIssuesUsingJql`.
+
+```
+claude mcp add --transport sse atlassian https://mcp.atlassian.com/v1/sse
+```
+
+Inputs needed: none. After adding, restart Claude and approve the Atlassian
+OAuth consent.
+
+### Option B — Community mcp-atlassian (sooperset) — token-based
+
+Good for Jira Server/Data Center or an API-token preference. Detected tools look
+like `jira_get_all_projects`, `jira_create_issue`, `jira_search`.
+
+- **Prerequisite:** Docker (`docker --version`).
+- **Inputs:** `JIRA_URL` (e.g. `https://your-domain.atlassian.net`),
+  `JIRA_USERNAME` (account email), `JIRA_API_TOKEN`
+  (from `https://id.atlassian.com/manage-profile/security/api-tokens`).
+
+```
+claude mcp add atlassian -- docker run -i --rm \
+  -e JIRA_URL=<url> \
+  -e JIRA_USERNAME=<email> \
+  -e JIRA_API_TOKEN=<token> \
+  ghcr.io/sooperset/mcp-atlassian:latest
+```
+
+The skill masks the token when echoing the command before running it.

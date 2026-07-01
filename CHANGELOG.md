@@ -6,6 +6,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-07-01
+
+### Changed
+- `setup-toolkit` now **connects the Jira MCP for you**: when none is detected it
+  shows a popup choice (Atlassian Rovo OAuth / community mcp-atlassian token /
+  skip), collects the token if needed, and runs `claude mcp add` itself instead
+  of printing copy-paste instructions. Exact connection commands live in
+  `references/providers/jira.md`. (A single Claude restart is still required for
+  the new MCP tools to load.)
+
 ## [0.5.0] - 2026-07-01
 
 ### Added
