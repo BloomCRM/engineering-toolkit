@@ -61,12 +61,22 @@ Resolve paths once:
 7. **Write (sync only), parent-first.** Execute the operations in order via the
    adapter's tools:
    - **create**: map `type`/`kind` to the Jira issue type (Epic/Story/Task/
-     Sub-task/Bug per the adapter), set `summary`=title, fold acceptance criteria
-     and Definition of Done into the description, set the parent link using the
-     parent's freshly created `trackerKey`, add the `phase` label (per
-     `config.mappings.phaseField`) and the `eng-id:<engId>` label. Record the new
-     issue key.
-   - **update**: push the same fields to the existing `trackerKey`.
+     Sub-task/Bug per the adapter). Build the `summary` as **`[TAG] <title>`**,
+     where TAG maps `task.category`: backend→BE, frontend→FE, database→DB,
+     validation→VAL, tests→QA, documentation→DOC, logging→LOG, monitoring→MON,
+     migration→MIG, admin→ADM, design→DESIGN. (Epics/stories keep a plain title.)
+     Fold acceptance criteria and Definition of Done into the description. Set the
+     parent link from the parent's freshly created `trackerKey`. Set the Jira
+     **priority** from the node's `priority` field (already derived from phase).
+     Add labels: the `phase` label (per `config.mappings.phaseField`), the
+     `eng-id:<engId>` label, `disc:<category>` for tasks, and — if the node's
+     `needsDecision` is true — `needs-decision` (and prefix the title with `[?]`).
+     Record the new issue key.
+   - **update**: push the same fields (summary+tag, description, priority, labels)
+     to the existing `trackerKey`. **Conservative rule:** always refresh labels /
+     tag-prefix / priority (safe, additive); overwrite a description only if it is
+     empty or unchanged since the last eng-sync — otherwise warn and skip, to
+     avoid clobbering human edits in Jira.
    Collect an `engId → issueKey` result map.
 
 8. **Record + validate.** Write the result keys back into the model (the planner's
