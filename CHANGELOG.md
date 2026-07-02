@@ -6,6 +6,17 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-07-02
+
+### Added (v2.1 item K — done-detection depth)
+- `reality-check` skill (`/eng:reality-check`) — greps production code for
+  stub/mock/TODO/NotImplemented markers and flags `done` domains whose sources
+  look fake, so the done-map never syncs a mock as `Done`. Deterministic
+  `reality-scan.mjs` (`flagSuspects`/`buildRealityReport`); read-only report.
+- `senior-engineer` agent sharpened: **"renders ≠ done"** — hunts stub-vs-real;
+  a component with mock data or missing expected features is `partial`, not
+  `implemented`.
+
 ## [0.10.0] - 2026-07-02
 
 ### Changed (v2.1 batch 1 — faithful-backlog rendering)
