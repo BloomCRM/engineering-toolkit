@@ -6,6 +6,18 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-07-02
+
+### Added
+- `refresh-model` skill (`/eng:refresh-model`) — re-applies the deterministic
+  planning layer (Done epic-status map, dedicated Tech-Debt/Bug epics, default
+  DoD, priority, epic status) to an **existing** model **without re-analyzing or
+  re-drafting**, preserving every id/trackerKey. Makes "add what's already done
+  to the current backlog, no diff, no duplicates" a first-class toolkit
+  operation instead of an out-of-toolkit manual step.
+- `planning-model.mjs normalize --write` — write the normalized model back in
+  place (reports the epic-count delta).
+
 ## [0.12.0] - 2026-07-02
 
 ### Added (v2.1 item A — done epic-status map)

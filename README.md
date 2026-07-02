@@ -26,6 +26,7 @@ structured engineering backlog and synchronizes it to your issue tracker.
 | `/eng:run` | Guided, approval-gated pipeline (setup -> analyze -> build -> sync) |
 | `/eng:analyze-project` | Multi-agent analysis of the repo into the Knowledge Model |
 | `/eng:build-project-model` | Knowledge Model -> Planning Model + backlog (epics/stories/tasks) |
+| `/eng:refresh-model` | Re-apply deterministic layer (done-map/priority) to an existing model, no re-draft |
 | `/eng:sync-tracker` | Push the backlog to Jira (dry-run default; confirm before write) |
 | `/eng:detect-changes` | Diff since last analysis; report stale model entries |
 | `/eng:reality-check` | Flag "done" domains that may actually be stubs/mocks |

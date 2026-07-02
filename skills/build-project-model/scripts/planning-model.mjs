@@ -1,5 +1,5 @@
 // Zero-dependency planning-model + backlog normalization for project-model.json.
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { DEFAULT_DOD, validateModel } from '../../knowledge-store/scripts/store.mjs';
 
@@ -106,10 +106,17 @@ if (isMain()) {
   try {
     if (cmd === 'normalize') {
       const model = JSON.parse(readFileSync(file, 'utf8'));
+      const before = (model.backlog && model.backlog.epics || []).length;
       const n = normalizeModel(model);
       const errors = validateModel(n);
       if (errors.length) { console.error('INVALID after normalize:\n' + errors.map(e => ' - ' + e).join('\n')); process.exit(1); }
-      console.log(JSON.stringify(n, null, 2));
+      if (process.argv.includes('--write')) {
+        writeFileSync(file, JSON.stringify(n, null, 2) + '\n', 'utf8');
+        const done = n.backlog.epics.filter(e => e.status === 'done').length;
+        console.log(`normalized ${file}: epics ${before} -> ${n.backlog.epics.length} (${done} Done, ids/trackerKeys preserved)`);
+      } else {
+        console.log(JSON.stringify(n, null, 2));
+      }
     } else {
       console.error('usage: planning-model.mjs normalize <model.json>');
       process.exit(2);
