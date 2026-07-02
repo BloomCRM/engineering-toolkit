@@ -81,6 +81,13 @@ re-run setup.
 - Subtasks require the parent to exist first (create order: Epic → Story → Task →
   Sub-task).
 - Rate limits apply on Jira Cloud; batch conservatively.
+- **Transitions resolve by status CATEGORY, not name.** A transition's target
+  status carries a `statusCategory.key` of `new` / `indeterminate` / `done` —
+  these three are universal across every Jira template, whereas status *names*
+  are renamed/localized per project. `sync-tracker` uses
+  `resolveTransitionForStatus` (in `sync-plan.mjs`) to pick the transition id by
+  category, so the done-map works on any workflow. Transition ids are
+  per-project — always resolve them at runtime from a live `getTransitions`.
 
 ## 7. Connection (automated setup)
 

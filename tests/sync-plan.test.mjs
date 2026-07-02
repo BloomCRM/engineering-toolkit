@@ -1,8 +1,18 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  flattenBacklog, engLabel, buildSyncPlan, applyResults, validateReadyForSync
+  flattenBacklog, engLabel, buildSyncPlan, applyResults, validateReadyForSync,
+  STATUS_CATEGORY_BY_INTENT, resolveTransitionByCategory, resolveTransitionForStatus
 } from '../skills/sync-tracker/scripts/sync-plan.mjs';
+
+// Shape returned by Atlassian official getTransitionsForJiraIssue.
+function transitions() {
+  return [
+    { id: '11', name: 'To Do', to: { name: 'To Do', statusCategory: { key: 'new', name: 'To Do' } } },
+    { id: '21', name: 'Start', to: { name: 'In Progress', statusCategory: { key: 'indeterminate', name: 'In Progress' } } },
+    { id: '51', name: 'Ship it', to: { name: 'Done', statusCategory: { key: 'done', name: 'Done' } } },
+  ];
+}
 
 function backlog() {
   return {
@@ -76,4 +86,58 @@ test('validateReadyForSync: incomplete config is blocked', () => {
 test('validateReadyForSync: non-jira provider is blocked', () => {
   const cfg = { provider: 'linear', providerStatus: 'stub', mcp: { available: false }, project: { key: null } };
   assert.ok(validateReadyForSync(cfg).some(e => /jira|sync-ready/i.test(e)));
+});
+
+test('STATUS_CATEGORY_BY_INTENT: maps epic status to universal category keys', () => {
+  assert.equal(STATUS_CATEGORY_BY_INTENT['done'], 'done');
+  assert.equal(STATUS_CATEGORY_BY_INTENT['in-progress'], 'indeterminate');
+  assert.equal(STATUS_CATEGORY_BY_INTENT['todo'], 'new');
+});
+
+test('resolveTransitionByCategory: picks transition by target category, not name', () => {
+  assert.equal(resolveTransitionByCategory(transitions(), 'done'), '51');
+  assert.equal(resolveTransitionByCategory(transitions(), 'indeterminate'), '21');
+  assert.equal(resolveTransitionByCategory(transitions(), 'new'), '11');
+});
+
+test('resolveTransitionByCategory: works when status names are renamed/localized', () => {
+  // Names are Ukrainian, categories are the universal keys — must still resolve.
+  const localized = [
+    { id: '7', name: 'Готово', to: { name: 'Готово', statusCategory: { key: 'done' } } },
+  ];
+  assert.equal(resolveTransitionByCategory(localized, 'done'), '7');
+});
+
+test('resolveTransitionByCategory: tolerates flattened statusCategory shape', () => {
+  const flat = [{ id: '9', name: 'Done', statusCategory: { key: 'done' } }];
+  assert.equal(resolveTransitionByCategory(flat, 'done'), '9');
+});
+
+test('resolveTransitionByCategory: returns null when no transition matches', () => {
+  const onlyTodo = [{ id: '11', to: { statusCategory: { key: 'new' } } }];
+  assert.equal(resolveTransitionByCategory(onlyTodo, 'done'), null);
+});
+
+test('resolveTransitionByCategory: null on bad input', () => {
+  assert.equal(resolveTransitionByCategory(null, 'done'), null);
+  assert.equal(resolveTransitionByCategory(transitions(), null), null);
+  assert.equal(resolveTransitionByCategory(transitions(), undefined), null);
+});
+
+test('resolveTransitionByCategory: first match wins on duplicate categories', () => {
+  const dup = [
+    { id: '50', to: { statusCategory: { key: 'done' } } },
+    { id: '51', to: { statusCategory: { key: 'done' } } },
+  ];
+  assert.equal(resolveTransitionByCategory(dup, 'done'), '50');
+});
+
+test('resolveTransitionForStatus: resolves straight from epic status intent', () => {
+  assert.equal(resolveTransitionForStatus(transitions(), 'done'), '51');
+  assert.equal(resolveTransitionForStatus(transitions(), 'in-progress'), '21');
+});
+
+test('resolveTransitionForStatus: unknown status yields null; todo maps to the new category', () => {
+  assert.equal(resolveTransitionForStatus(transitions(), 'todo'), '11');
+  assert.equal(resolveTransitionForStatus(transitions(), 'bogus'), null);
 });

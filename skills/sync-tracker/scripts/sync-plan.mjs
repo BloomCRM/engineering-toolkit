@@ -6,6 +6,39 @@ export function engLabel(engId) {
   return `eng-id:${engId}`;
 }
 
+// Map an epic-status intent to Jira's universal status-category key. Status
+// NAMES localize/rename per template (we hit this with issue-type names), but
+// the three categories are constant across every Jira project.
+export const STATUS_CATEGORY_BY_INTENT = {
+  done: 'done',
+  'in-progress': 'indeterminate',
+  todo: 'new',
+};
+
+// Read a transition's TARGET status-category key, tolerating both the nested
+// Atlassian-official shape (t.to.statusCategory.key) and a flattened one.
+function transitionTargetCategory(t) {
+  return t?.to?.statusCategory?.key || t?.statusCategory?.key || null;
+}
+
+// Given the getTransitions list and a desired status-category key
+// (new | indeterminate | done), return the id of the first transition whose
+// target status falls in that category, or null. Category-based so it survives
+// renamed/localized statuses — the whole point of item P.
+export function resolveTransitionByCategory(transitions, categoryKey) {
+  if (!Array.isArray(transitions) || !categoryKey) return null;
+  const match = transitions.find(t => transitionTargetCategory(t) === categoryKey);
+  return match ? match.id : null;
+}
+
+// Convenience: resolve the transition id straight from an epic-status intent
+// (done | in-progress | todo). Returns null for an unknown status.
+export function resolveTransitionForStatus(transitions, status) {
+  const categoryKey = STATUS_CATEGORY_BY_INTENT[status];
+  if (!categoryKey) return null;
+  return resolveTransitionByCategory(transitions, categoryKey);
+}
+
 // Flatten backlog into a parent-first list of nodes.
 export function flattenBacklog(backlog) {
   const nodes = [];
