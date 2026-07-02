@@ -125,8 +125,11 @@ if (isMain()) {
       } else {
         console.log(JSON.stringify(n, null, 2));
       }
+    } else if (cmd === 'would-change') {
+      const model = JSON.parse(readFileSync(file, 'utf8'));
+      console.log(normalizeWouldChange(model) ? 'yes' : 'no');
     } else {
-      console.error('usage: planning-model.mjs normalize <model.json>');
+      console.error('usage: planning-model.mjs <normalize [--write] | would-change> <model.json>');
       process.exit(2);
     }
   } catch (err) {

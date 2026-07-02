@@ -6,6 +6,18 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-07-02
+
+### Added
+- **Freshness-aware `/eng:run`** — in the synced (`review-drift`) state, a re-run
+  now decides what to do instead of blindly re-analyzing: `recommendRerunMode`
+  branches on (a) a git diff since `source.commit` and (b) whether a deterministic
+  refresh would change anything. Three outcomes: **reanalyze** (repo moved),
+  **refresh** (repo unchanged but the deterministic layer is stale — e.g. after a
+  toolkit upgrade that added the done-map; runs `refresh-model` → sync, no
+  agents), or **in-sync** (nothing to do). Backed by `normalizeWouldChange` +
+  `planning-model.mjs would-change`.
+
 ## [0.13.0] - 2026-07-02
 
 ### Added

@@ -50,9 +50,24 @@ Repeat until the user stops:
      Only on an explicit yes, run `/eng:sync-tracker sync`. If the config is not
      `ready`, say sync is blocked and point to finishing `/eng:setup-toolkit`
      (the offline steps are already done).
-   - `review-drift` → `/eng:detect-changes`; if entries are stale, offer to re-run
-     `analyze` (incrementally); if nothing is stale, report the project is in sync
-     and stop.
+   - `review-drift` → **decide full-vs-refresh-vs-nothing by freshness** (this is
+     the smart part — a re-run should not blindly re-analyze):
+     1. **Repo diff?** Run `/eng:detect-changes`. `hasRepoDiff` = it reports any
+        stale entries / changed files since `source.commit`.
+     2. **Deterministic layer stale?** `refreshWouldChange` =
+        `node "${CLAUDE_PLUGIN_ROOT}/skills/build-project-model/scripts/planning-model.mjs" would-change .eng/project-model.json`
+        prints `yes` (a refresh would add a new done-map / stamp missing
+        priority/status — e.g. after a toolkit upgrade).
+     3. Apply `recommendRerunMode` (`pipeline.mjs`):
+        - **reanalyze** (repo moved) → offer `/eng:analyze-project` (focus the
+          stale slice) → `/eng:build-project-model` → `/eng:sync-tracker`.
+        - **refresh** (repo unchanged but layer stale) → offer `/eng:refresh-model`
+          → `/eng:sync-tracker`. **No agents, fast** — deterministic pickup only
+          (it will NOT change agent-authored text or translate; that needs a
+          re-analysis / translate step).
+        - **in-sync** (no diff, layer current) → report the project is up to date
+          and stop.
+     Present the recommendation and get approval — one path, one step at a time.
 
 6. **Recompute and propose the next step** (back to 2). Never batch several steps
    behind one approval.
