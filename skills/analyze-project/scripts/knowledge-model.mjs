@@ -33,6 +33,42 @@ export function mergeFindings(agentFindings) {
   return km;
 }
 
+// --- Completeness critic (item M) ------------------------------------------
+// The semantic judgment — "does an existing domain cover this documented plan?"
+// — is made by the completeness-critic pass (LLM), which tags each plan with the
+// domain id it maps to (`coveredBy`) or null. This helper does the DETERMINISTIC
+// part: surface plans with no coverage, and catch coverage that points at a
+// domain that does not exist (a hallucinated match). Returns gap objects.
+export function findCoverageGaps(km, plans) {
+  const domainIds = new Set((km?.domains || []).map(d => d && d.id).filter(Boolean));
+  const gaps = [];
+  for (const plan of plans || []) {
+    if (!plan || !plan.name) continue;
+    const coveredBy = plan.coveredBy || null;
+    if (!coveredBy) {
+      gaps.push({ name: plan.name, reason: 'no-domain', sources: uniq(plan.sources) });
+    } else if (!domainIds.has(coveredBy)) {
+      gaps.push({ name: plan.name, reason: 'broken-coverage', coveredBy, sources: uniq(plan.sources) });
+    }
+  }
+  return gaps;
+}
+
+const slug = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+
+// Turn coverage gaps into knowledgeModel `risks` (kind "unknown") so a documented
+// but un-modelled plan surfaces in the backlog instead of silently vanishing.
+export function gapsToRisks(gaps) {
+  return (gaps || []).filter(g => g && g.name).map((g, i) => ({
+    id: `gap-${slug(g.name) || `plan-${i + 1}`}`,
+    title: g.reason === 'broken-coverage'
+      ? `Documented plan "${g.name}" is mapped to a missing domain "${g.coveredBy}" — no real coverage.`
+      : `Documented plan "${g.name}" has no domain or backlog entry — coverage gap.`,
+    kind: 'unknown',
+    sources: uniq(g.sources),
+  }));
+}
+
 export function validateKnowledgeModel(km) {
   const errors = [];
   if (!km || typeof km !== 'object') return ['knowledgeModel is not an object'];
@@ -62,8 +98,14 @@ if (isMain()) {
       const errors = validateKnowledgeModel(km);
       if (errors.length) { console.error('INVALID:\n' + errors.map(e => ' - ' + e).join('\n')); process.exit(1); }
       console.log('VALID');
+    } else if (cmd === 'gaps') {
+      // gaps <km.json> <plans.json> → knowledgeModel risks for un-modelled plans.
+      // plans.json: [{ name, coveredBy: <domainId|null>, sources: [] }] from the critic.
+      const km = JSON.parse(readFileSync(file, 'utf8'));
+      const plans = JSON.parse(readFileSync(process.argv[4], 'utf8'));
+      console.log(JSON.stringify({ risks: gapsToRisks(findCoverageGaps(km, plans)) }, null, 2));
     } else {
-      console.error('usage: knowledge-model.mjs <merge <findings.json>|validate <km.json>>');
+      console.error('usage: knowledge-model.mjs <merge <findings.json>|validate <km.json>|gaps <km.json> <plans.json>>');
       process.exit(2);
     }
   } catch (err) {
