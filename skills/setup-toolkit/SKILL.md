@@ -73,6 +73,19 @@ MCP no longer stops setup; the user can skip it and wire the tracker later.
      If it does not exist, instruct manual creation in Jira and stop — **never
      auto-create the project**.
    - read issue types, statuses, components; keep them for the config.
+   - **Workflow-health check (advisory, never blocks).** Save the read statuses
+     (each `{ name, statusCategory: { key } }`) to a temp JSON and run
+     `node "$CONFIG" health <statuses.json>`. It WARNs on: a status whose
+     **category** contradicts its name (e.g. a "Backlog"/"To Do" status sitting
+     in the *In Progress* category — category-based boards then lie), **more than
+     one** not-started status, or a universal category (`new`/`indeterminate`/
+     `done`) with **no** status. Surface any warnings and point the user at the
+     **Recommended template** in `references/providers/jira.md`. Also note if an
+     unused `Feature` issue type exists (the template drops it). This is
+     **verify-only** — the toolkit never edits statuses/workflows; that is a
+     manual Jira-UI fix. A clean, category-correct workflow is what lets the
+     done-map transition reliably (it resolves transitions by category — see the
+     adapter).
 
 6. **Persist config.**
    - Scaffold: `node "$CONFIG" init <provider>` (add `--force` only if the user
