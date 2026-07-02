@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   PHASES, ensureDedicatedEpics, applyDefaultDoD, buildPlanningItems, normalizeModel,
-  TECH_DEBT_EPIC_ID, BUG_EPIC_ID, derivePriority
+  TECH_DEBT_EPIC_ID, BUG_EPIC_ID, derivePriority, deriveEpicStatus, buildDoneEpics
 } from '../skills/build-project-model/scripts/planning-model.mjs';
 import { validateModel, DEFAULT_DOD } from '../skills/knowledge-store/scripts/store.mjs';
 
@@ -98,4 +98,38 @@ test('normalizeModel: produces a model that passes store validation', () => {
   assert.ok(n.backlog.epics.some(e => e.type === 'techdebt'));
   assert.ok(n.backlog.epics.some(e => e.type === 'bug'));
   assert.deepEqual(n.backlog.epics.find(e => e.id === 'epic-calendar').stories[0].definitionOfDone, DEFAULT_DOD);
+});
+
+// --- v2.1 A: done epic-status map ---
+test('deriveEpicStatus: maps domain status to epic status', () => {
+  assert.equal(deriveEpicStatus('implemented'), 'done');
+  assert.equal(deriveEpicStatus('partial'), 'in-progress');
+  assert.equal(deriveEpicStatus('planned'), 'todo');
+  assert.equal(deriveEpicStatus('unknown'), 'todo');
+});
+
+test('buildDoneEpics: one Done epic per implemented domain, no stories', () => {
+  const km = { domains: [
+    { id: 'bookings', name: 'Bookings', status: 'implemented' },
+    { id: 'cashdesk', name: 'Cash desk', status: 'planned' },
+    { id: 'access', name: 'Access', status: 'partial' }
+  ] };
+  const epics = buildDoneEpics(km);
+  assert.deepEqual(epics.map(e => e.id), ['epic-done-bookings']);
+  assert.equal(epics[0].status, 'done');
+  assert.deepEqual(epics[0].stories, []);
+  assert.equal(epics[0].type, 'feature');
+});
+
+test('normalizeModel: prepends done-epics and stamps status; still validates', () => {
+  const model = {
+    schemaVersion: '1.0',
+    knowledgeModel: { domains: [{ id: 'bookings', name: 'Bookings', status: 'implemented' }], architecture: [], techDebt: [], infrastructure: [], security: [], risks: [] },
+    planningModel: { phases: [], items: [] },
+    backlog: { epics: [{ id: 'epic-cal', trackerKey: null, phase: 'MVP', type: 'feature', title: 'Calendar', stories: [{ id: 's1', trackerKey: null, title: 'Day', acceptanceCriteria: [{ given: 'g', when: 'w', then: 't' }], definitionOfDone: ['code'], tasks: [] }] }] }
+  };
+  const n = normalizeModel(model);
+  assert.ok(n.backlog.epics.some(e => e.id === 'epic-done-bookings' && e.status === 'done'));
+  assert.equal(n.backlog.epics.find(e => e.id === 'epic-cal').status, 'todo');
+  assert.deepEqual(validateModel(n), []);
 });

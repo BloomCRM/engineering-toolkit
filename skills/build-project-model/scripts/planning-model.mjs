@@ -20,6 +20,27 @@ export function derivePriority(phase) {
   return PHASE_PRIORITY[phase] || 'Medium';
 }
 
+// Epic status from a domain's knowledge-model status.
+export const EPIC_STATUSES = ['done', 'in-progress', 'todo'];
+export function deriveEpicStatus(domainStatus) {
+  if (domainStatus === 'implemented') return 'done';
+  if (domainStatus === 'partial') return 'in-progress';
+  return 'todo';
+}
+
+// Lightweight Done epics (no stories) for every already-implemented domain — the "what's built" map.
+export function buildDoneEpics(knowledgeModel) {
+  const epics = [];
+  for (const d of knowledgeModel?.domains || []) {
+    if (d.status !== 'implemented') continue;
+    epics.push({
+      id: `epic-done-${d.id}`, trackerKey: null, phase: 'MVP', type: 'feature',
+      title: d.name || d.id, status: 'done', stories: []
+    });
+  }
+  return epics;
+}
+
 export function ensureDedicatedEpics(epics) {
   const out = Array.isArray(epics) ? [...epics] : [];
   if (!out.some(e => e && e.type === 'techdebt')) {
@@ -64,7 +85,11 @@ export function normalizeModel(model, { decisions = {} } = {}) {
   const m = { ...model };
   m.backlog = m.backlog && Array.isArray(m.backlog.epics) ? m.backlog : { epics: [] };
   m.backlog.epics = applyDefaultDoD(ensureDedicatedEpics(m.backlog.epics));
+  const doneEpics = buildDoneEpics(m.knowledgeModel || {});
+  const doneIds = new Set(doneEpics.map(e => e.id));
+  m.backlog.epics = [...doneEpics, ...m.backlog.epics.filter(e => !doneIds.has(e.id))];
   for (const epic of m.backlog.epics) {
+    if (!epic.status) epic.status = 'todo';
     epic.priority = derivePriority(epic.phase);
     for (const story of epic.stories || []) story.priority = epic.priority;
   }
