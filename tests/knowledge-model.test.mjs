@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { emptyKnowledgeModel, mergeFindings, validateKnowledgeModel, findCoverageGaps, gapsToRisks } from '../skills/analyze-project/scripts/knowledge-model.mjs';
+import { emptyKnowledgeModel, mergeFindings, validateKnowledgeModel, findCoverageGaps, gapsToRisks, suggestDomainMerges, applyDomainMerges } from '../skills/analyze-project/scripts/knowledge-model.mjs';
 
 const SECTIONS = ['domains', 'architecture', 'techDebt', 'infrastructure', 'security', 'risks'];
 
@@ -113,4 +113,110 @@ test('gapsToRisks output merges cleanly and passes validation', () => {
   const km = mergeFindings([kmWithDomains('bookings'), { risks }]);
   assert.deepEqual(validateKnowledgeModel(km), []);
   assert.ok(km.risks.some(r => r.id === 'gap-multi-service-booking'));
+});
+
+// --- semantic domain dedup (item L) ---
+const domainsFrom = (...ids) => ids.map(id => ({ id, name: id, status: 'implemented', dependsOn: [], sources: [`${id}.md`] }));
+
+test('suggestDomainMerges: separator variance (cash-desk / cashdesk) is one group', () => {
+  const s = suggestDomainMerges(domainsFrom('cash-desk', 'cashdesk'));
+  assert.equal(s.length, 1);
+  assert.equal(s[0].canonical, 'cashdesk'); // shortest id
+  assert.deepEqual(s[0].duplicates, ['cash-desk']);
+});
+
+test('suggestDomainMerges: compound token-subset (cashdesk / finance-cashdesk)', () => {
+  const s = suggestDomainMerges(domainsFrom('cashdesk', 'finance-cashdesk'));
+  assert.equal(s.length, 1);
+  assert.equal(s[0].canonical, 'cashdesk');
+  assert.deepEqual(s[0].duplicates, ['finance-cashdesk']);
+});
+
+test('suggestDomainMerges: transitive cluster of three string-similar ids', () => {
+  const s = suggestDomainMerges(domainsFrom('cash-desk', 'cashdesk', 'finance-cashdesk'));
+  assert.equal(s.length, 1);
+  const all = [s[0].canonical, ...s[0].duplicates].sort();
+  assert.deepEqual(all, ['cash-desk', 'cashdesk', 'finance-cashdesk']);
+});
+
+test('suggestDomainMerges: fiscalization / cash-desk-fiscalization merge', () => {
+  const s = suggestDomainMerges(domainsFrom('fiscalization', 'cash-desk-fiscalization'));
+  assert.equal(s.length, 1);
+  assert.equal(s[0].canonical, 'fiscalization');
+});
+
+test('suggestDomainMerges: camelCase normalizes to the separator form', () => {
+  const s = suggestDomainMerges(domainsFrom('cashDesk', 'cash-desk'));
+  assert.equal(s.length, 1);
+});
+
+test('suggestDomainMerges: meaning-similar (not string-similar) is NOT merged — LLM job', () => {
+  assert.deepEqual(suggestDomainMerges(domainsFrom('bookings', 'calendar-ui')), []);
+  assert.deepEqual(suggestDomainMerges(domainsFrom('roles-permissions', 'capability-based-authz')), []);
+});
+
+test('suggestDomainMerges: guards against the masters / master-schedule false positive', () => {
+  assert.deepEqual(suggestDomainMerges(domainsFrom('masters', 'master-schedule')), []);
+});
+
+test('suggestDomainMerges: short shared token alone (api / api-gateway) does not merge', () => {
+  assert.deepEqual(suggestDomainMerges(domainsFrom('api', 'api-gateway')), []);
+});
+
+test('suggestDomainMerges: no duplicates / empty input => []', () => {
+  assert.deepEqual(suggestDomainMerges(domainsFrom('bookings', 'masters', 'calendar')), []);
+  assert.deepEqual(suggestDomainMerges([]), []);
+  assert.deepEqual(suggestDomainMerges(null), []);
+});
+
+test('applyDomainMerges: folds duplicate into canonical, unions sources', () => {
+  const km = emptyKnowledgeModel();
+  km.domains = domainsFrom('cashdesk', 'cash-desk');
+  const out = applyDomainMerges(km, [{ canonical: 'cashdesk', duplicates: ['cash-desk'] }]);
+  assert.equal(out.domains.length, 1);
+  assert.equal(out.domains[0].id, 'cashdesk');
+  assert.deepEqual([...out.domains[0].sources].sort(), ['cash-desk.md', 'cashdesk.md']);
+});
+
+test('applyDomainMerges: remaps dependsOn references from duplicate to canonical', () => {
+  const km = emptyKnowledgeModel();
+  km.domains = [
+    { id: 'cashdesk', name: 'Cash desk', status: 'implemented', dependsOn: [], sources: [] },
+    { id: 'finance-cashdesk', name: 'dup', status: 'partial', dependsOn: [], sources: [] },
+    { id: 'reports', name: 'Reports', status: 'planned', dependsOn: ['finance-cashdesk'], sources: [] },
+  ];
+  const out = applyDomainMerges(km, [{ canonical: 'cashdesk', duplicates: ['finance-cashdesk'] }]);
+  assert.equal(out.domains.length, 2);
+  const reports = out.domains.find(d => d.id === 'reports');
+  assert.deepEqual(reports.dependsOn, ['cashdesk']);
+});
+
+test('applyDomainMerges: drops a self-dependency created by the remap', () => {
+  const km = emptyKnowledgeModel();
+  km.domains = [
+    { id: 'cashdesk', name: 'Cash desk', status: 'implemented', dependsOn: ['finance-cashdesk'], sources: [] },
+    { id: 'finance-cashdesk', name: 'dup', status: 'partial', dependsOn: [], sources: [] },
+  ];
+  const out = applyDomainMerges(km, [{ canonical: 'cashdesk', duplicates: ['finance-cashdesk'] }]);
+  assert.equal(out.domains.length, 1);
+  assert.deepEqual(out.domains[0].dependsOn, []);
+});
+
+test('applyDomainMerges: canonical name/status wins regardless of order', () => {
+  const km = emptyKnowledgeModel();
+  km.domains = [
+    { id: 'finance-cashdesk', name: 'Wrong name', status: 'planned', dependsOn: [], sources: [] },
+    { id: 'cashdesk', name: 'Cash Desk', status: 'implemented', dependsOn: [], sources: [] },
+  ];
+  const out = applyDomainMerges(km, [{ canonical: 'cashdesk', duplicates: ['finance-cashdesk'] }]);
+  assert.equal(out.domains[0].name, 'Cash Desk');
+  assert.equal(out.domains[0].status, 'implemented');
+});
+
+test('applyDomainMerges: no merges leaves the model unchanged and valid', () => {
+  const km = emptyKnowledgeModel();
+  km.domains = domainsFrom('bookings', 'masters');
+  const out = applyDomainMerges(km, []);
+  assert.equal(out.domains.length, 2);
+  assert.deepEqual(validateKnowledgeModel(out), []);
 });
