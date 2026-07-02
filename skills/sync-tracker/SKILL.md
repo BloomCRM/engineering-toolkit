@@ -85,11 +85,18 @@ Resolve paths once:
    - **epic status (the done-map):** after creating/finding an epic, if
      `epic.status` is `done` or `in-progress`, **transition it**. Jira sets the
      initial status on create, so this is create-then-transition: call the
-     adapter's `getTransitions`, find the transition whose target status name is
-     `Done` (for `done`) or `In Progress` (for `in-progress`), and apply it via
-     `transitionJiraIssue`. **Resolve the transition id by name at runtime — ids
-     are per-project.** `todo` epics need no transition. This is what surfaces
-     "what's already built" as green Done epics instead of a to-do-only tracker.
+     adapter's `getTransitions`, then resolve the transition **by target status
+     CATEGORY, not by name** — pass the transitions list to the planner's
+     `resolveTransitionForStatus(transitions, epic.status)` (maps `done`→category
+     `done`, `in-progress`→`indeterminate`, `todo`→`new`) and apply the returned
+     id via `transitionJiraIssue`. Category keys are universal across Jira
+     templates, so this survives renamed/localized statuses (status *names* vary
+     — we already hit that with issue-type names); ids are still per-project, so
+     always resolve at runtime from the live `getTransitions`. If the helper
+     returns null (no transition into that category — already there, or the
+     project lacks it), skip silently. `todo` epics need no transition. This is
+     what surfaces "what's already built" as green Done epics instead of a
+     to-do-only tracker.
    Collect an `engId → issueKey` result map.
 
 8. **Record + validate.** Write the result keys back into the model (the planner's
