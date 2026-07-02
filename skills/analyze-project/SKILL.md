@@ -19,6 +19,7 @@ Turn the repository into a Knowledge Model — the factual layer of
 Resolve paths once:
 - `STORE="${CLAUDE_PLUGIN_ROOT}/skills/knowledge-store/scripts/store.mjs"`
 - `KM="${CLAUDE_PLUGIN_ROOT}/skills/analyze-project/scripts/knowledge-model.mjs"`
+- `CONFIG="${CLAUDE_PLUGIN_ROOT}/skills/setup-toolkit/scripts/config.mjs"`
 - findings schema: `${CLAUDE_PLUGIN_ROOT}/references/findings-schema.md`
 
 ## Steps
@@ -30,15 +31,27 @@ Resolve paths once:
    the roadmap, a bugs doc, `docs/`, `docs/architecture/`, `adr/`/ADR files,
    `docs/code-reviews/`, `specs/`. Note the current git commit (for `source`).
 
-3. **Dispatch the agent panel — in parallel.** Spawn these eight subagents using
-   the Task tool with the matching agent type, giving each the discovered inputs
-   and the findings schema: `product-owner`, `solution-architect`,
-   `senior-engineer`, `data-engineer`, `qa-lead`, `devops-engineer`,
-   `technical-writer`. (Hold `final-reviewer` for step 5.) Each returns findings
-   JSON. If a run is too large, scope agents to a subset of docs, but record what
-   was skipped — never silently drop inputs.
+3. **Dispatch the agent panel — in parallel.** Resolve which reviewers to run
+   from config: `node "$CONFIG" panel` prints one agent name per line. The tiers
+   (set in `.eng/config.json` `analysis.panel`) are: **core** — product-owner,
+   solution-architect, senior-engineer, qa-lead (cheapest useful); **standard**
+   (default) — adds data-engineer, devops-engineer, technical-writer; **deep** —
+   adds `ux-reviewer` and `security-engineer` (every lane = another full pass =
+   more cost, so these two run only on a deep pass, or via an explicit array).
+   Spawn each resolved agent with the Task tool, giving it the discovered inputs
+   and the findings schema. (Hold `final-reviewer` for step 6 — it is not in the
+   panel list and always runs.) Each returns findings JSON. If a run is too
+   large, scope agents to a subset of docs, but record what was skipped — never
+   silently drop inputs.
+   - **Clean lanes, grounded findings.** `security-engineer` owns app-security
+     (auth, secrets, PII, tenant isolation, injection) — devops no longer does.
+     `ux-reviewer` owns static UI/UX and missing-but-expected UI features. Both
+     must **cite files**; when a control or feature can't be confirmed from the
+     code, they emit a `risk` of kind `unknown` ("no evidence in <file>") — never
+     assert a hole they didn't see. A running-app visual UX audit is out of scope
+     (static ceiling only).
 
-4. **Merge deterministically.** Collect the seven JSON outputs into a JSON array,
+4. **Merge deterministically.** Collect the panel's JSON outputs into a JSON array,
    write it to a temp file, and run `node "$KM" merge <array.json>` to get the
    merged `knowledgeModel`. Write that object into `.eng/project-model.json`
    under `knowledgeModel`, and set `source.commit`/`branch`/`generatedAt`.

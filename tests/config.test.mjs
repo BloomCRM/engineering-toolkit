@@ -5,7 +5,8 @@ import { tmpdir } from 'node:os';
 import { mkdtempSync, existsSync, rmSync } from 'node:fs';
 import {
   initConfig, validateConfig, deriveStatus, readConfig, writeConfig, CONFIG_VERSION,
-  STATUS_CATEGORIES, checkWorkflowHealth
+  STATUS_CATEGORIES, checkWorkflowHealth,
+  KNOWN_AGENTS, PANELS, resolveAnalysisPanel
 } from '../skills/setup-toolkit/scripts/config.mjs';
 
 // Atlassian-official status shape: { name, statusCategory: { key } }.
@@ -119,6 +120,52 @@ test('checkWorkflowHealth: tolerates the flattened { category } shape', () => {
 test('checkWorkflowHealth: an unrecognized status name is not miscategorized-flagged', () => {
   const fs = checkWorkflowHealth([st('To Do', 'new'), st('Selected for Development', 'indeterminate'), st('Done', 'done')]);
   assert.ok(!fs.some(f => f.code === 'miscategorized-status'));
+});
+
+// --- configurable analysis panel (item I) ---
+test('initConfig: includes a default standard analysis panel and stays valid', () => {
+  const c = initConfig('jira');
+  assert.equal(c.analysis.panel, 'standard');
+  assert.deepEqual(validateConfig(c), []);
+});
+
+test('resolveAnalysisPanel: default (no analysis) is the standard 7-agent panel', () => {
+  assert.deepEqual(resolveAnalysisPanel({}), PANELS.standard);
+  assert.equal(PANELS.standard.length, 7);
+});
+
+test('resolveAnalysisPanel: core is the cheap lens, deep is every lens', () => {
+  assert.deepEqual(resolveAnalysisPanel({ analysis: { panel: 'core' } }), PANELS.core);
+  assert.deepEqual(resolveAnalysisPanel({ analysis: { panel: 'deep' } }), KNOWN_AGENTS);
+  // deep is the only tier carrying ux-reviewer + security-engineer
+  assert.ok(resolveAnalysisPanel({ analysis: { panel: 'deep' } }).includes('ux-reviewer'));
+  assert.ok(resolveAnalysisPanel({ analysis: { panel: 'deep' } }).includes('security-engineer'));
+  assert.ok(!resolveAnalysisPanel({ analysis: { panel: 'standard' } }).includes('security-engineer'));
+});
+
+test('resolveAnalysisPanel: an explicit array is filtered to known agents and deduped', () => {
+  const p = resolveAnalysisPanel({ analysis: { panel: ['ux-reviewer', 'ux-reviewer', 'bogus', 'qa-lead'] } });
+  assert.deepEqual(p, ['ux-reviewer', 'qa-lead']);
+});
+
+test('resolveAnalysisPanel: an unknown tier falls back to standard', () => {
+  assert.deepEqual(resolveAnalysisPanel({ analysis: { panel: 'nonsense' } }), PANELS.standard);
+});
+
+test('KNOWN_AGENTS: the nine reviewer lanes (final-reviewer runs separately)', () => {
+  assert.equal(KNOWN_AGENTS.length, 9);
+  assert.ok(KNOWN_AGENTS.includes('ux-reviewer') && KNOWN_AGENTS.includes('security-engineer'));
+  assert.ok(!KNOWN_AGENTS.includes('final-reviewer'));
+});
+
+test('validateConfig: a bad panel tier is an error', () => {
+  const c = initConfig('jira'); c.analysis.panel = 'turbo';
+  assert.ok(validateConfig(c).some(e => e.includes('panel')));
+});
+
+test('validateConfig: an array panel with an unknown agent is an error', () => {
+  const c = initConfig('jira'); c.analysis.panel = ['qa-lead', 'nope'];
+  assert.ok(validateConfig(c).some(e => e.includes('panel')));
 });
 
 test('writeConfig/readConfig round-trips and guards overwrite', () => {
