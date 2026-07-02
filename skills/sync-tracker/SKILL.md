@@ -77,6 +77,14 @@ Resolve paths once:
      tag-prefix / priority (safe, additive); overwrite a description only if it is
      empty or unchanged since the last eng-sync — otherwise warn and skip, to
      avoid clobbering human edits in Jira.
+   - **epic status (the done-map):** after creating/finding an epic, if
+     `epic.status` is `done` or `in-progress`, **transition it**. Jira sets the
+     initial status on create, so this is create-then-transition: call the
+     adapter's `getTransitions`, find the transition whose target status name is
+     `Done` (for `done`) or `In Progress` (for `in-progress`), and apply it via
+     `transitionJiraIssue`. **Resolve the transition id by name at runtime — ids
+     are per-project.** `todo` epics need no transition. This is what surfaces
+     "what's already built" as green Done epics instead of a to-do-only tracker.
    Collect an `engId → issueKey` result map.
 
 8. **Record + validate.** Write the result keys back into the model (the planner's

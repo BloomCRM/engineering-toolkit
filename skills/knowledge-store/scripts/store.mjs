@@ -33,6 +33,7 @@ export function validateModel(m) {
     seeId(epic.id, 'epic');
     if (!epic.phase) errors.push(`epic ${epic.id}: missing phase`);
     if (!['feature', 'bug', 'techdebt'].includes(epic.type)) errors.push(`epic ${epic.id}: invalid type`);
+    if ('status' in epic && !['done', 'in-progress', 'todo'].includes(epic.status)) errors.push(`epic ${epic.id}: invalid status`);
     if (!epic.title) errors.push(`epic ${epic.id}: missing title`);
     if (!Array.isArray(epic.stories)) { errors.push(`epic ${epic.id}: stories must be an array`); continue; }
 

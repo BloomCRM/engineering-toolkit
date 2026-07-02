@@ -50,6 +50,7 @@
               "phase": { "type": "string" },
               "type": { "type": "string", "enum": ["feature", "bug", "techdebt"] },
               "title": { "type": "string" },
+              "status": { "type": "string", "enum": ["done", "in-progress", "todo"] },
               "stories": {
                 "type": "array",
                 "items": {

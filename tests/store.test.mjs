@@ -103,3 +103,9 @@ test('validateModel: needsDecision must be boolean when present', () => {
   m.backlog.epics[0].stories[0].needsDecision = 'yes';
   assert.ok(validateModel(m).some(e => e.includes('needsDecision')));
 });
+
+test('validateModel: invalid epic status is an error', () => {
+  const m = valid();
+  m.backlog.epics[0].status = 'shipped';
+  assert.ok(validateModel(m).some(e => e.includes('invalid status')));
+});

@@ -58,6 +58,10 @@ Resolve paths once:
 
 - **Write all epic/story/task titles, descriptions and acceptance criteria in
   English**, regardless of the repository's language.
+- **Do not draft stories for `implemented` domains** — the `normalize` step adds
+  them deterministically as lightweight **Done** epics (`epic-done-<id>`, no
+  stories) so the tracker shows what's already built. Draft work only for
+  `partial` / `planned` domains.
 - Bugs and tech-debt live in their dedicated epics, never inside feature epics.
 - Every story has acceptance criteria (Given/When/Then) and a Definition of Done.
 - Never generate giant tasks — split by category.
