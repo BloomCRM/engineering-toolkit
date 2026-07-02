@@ -13,6 +13,36 @@ export function configPath() {
   return process.env.ET_CONFIG_PATH || join(process.cwd(), '.eng', 'config.json');
 }
 
+// --- Configurable analysis panel (item I) ----------------------------------
+// Every reviewer lane is another full pass = more cost, so the panel is
+// tunable. final-reviewer always runs separately (it reconciles the merged
+// model) and is not listed here.
+export const KNOWN_AGENTS = [
+  'product-owner', 'solution-architect', 'senior-engineer', 'data-engineer',
+  'qa-lead', 'devops-engineer', 'technical-writer', 'ux-reviewer', 'security-engineer',
+];
+export const PANELS = {
+  core: ['product-owner', 'solution-architect', 'senior-engineer', 'qa-lead'],
+  standard: ['product-owner', 'solution-architect', 'senior-engineer', 'data-engineer', 'qa-lead', 'devops-engineer', 'technical-writer'],
+  deep: KNOWN_AGENTS,
+};
+export const DEFAULT_PANEL = 'standard';
+
+// Resolve which reviewer agents analyze-project dispatches, from config. Accepts
+// a named tier (core/standard/deep) or an explicit array of agent names; unknown
+// names are dropped, the result is deduped and order-preserving.
+export function resolveAnalysisPanel(config) {
+  const p = config?.analysis?.panel ?? DEFAULT_PANEL;
+  const names = Array.isArray(p) ? p.filter(n => KNOWN_AGENTS.includes(n)) : (PANELS[p] || PANELS[DEFAULT_PANEL]);
+  return [...new Set(names)];
+}
+
+function isValidPanel(p) {
+  if (typeof p === 'string') return Object.prototype.hasOwnProperty.call(PANELS, p);
+  if (Array.isArray(p)) return p.length > 0 && p.every(n => KNOWN_AGENTS.includes(n));
+  return false;
+}
+
 // --- Workflow health (verify-only; item Q) ---------------------------------
 // Jira's three universal status categories. Names localize/vary; these keys do
 // not (same reason sync-tracker transitions by category — item P).
@@ -92,7 +122,8 @@ export function initConfig(provider) {
     providerStatus: 'incomplete',
     mcp: { available: false, detectedTools: [], checkedAt: null },
     project: { key: null, issueTypes: [], statuses: [], components: [], fields: {} },
-    mappings: { phaseField: 'label' }
+    mappings: { phaseField: 'label' },
+    analysis: { panel: DEFAULT_PANEL }
   };
   c.providerStatus = deriveStatus(c);
   return c;
@@ -116,6 +147,9 @@ export function validateConfig(c) {
   if (c.providerStatus === 'ready') {
     if (!c.mcp || !c.mcp.available) errors.push('providerStatus "ready" requires mcp.available = true');
     if (!c.project || !c.project.key) errors.push('providerStatus "ready" requires project.key');
+  }
+  if (c.analysis !== undefined && !isValidPanel(c.analysis?.panel)) {
+    errors.push('analysis.panel must be a known tier (core/standard/deep) or a non-empty array of known agents');
   }
   return errors;
 }
@@ -153,6 +187,9 @@ if (isMain()) {
       console.log('VALID');
     } else if (cmd === 'show') {
       console.log(JSON.stringify(readConfig(path), null, 2));
+    } else if (cmd === 'panel') {
+      // print the resolved analysis panel (agent names, one per line) for the SKILL
+      console.log(resolveAnalysisPanel(readConfig(path)).join('\n'));
     } else if (cmd === 'health') {
       // arg = path to a JSON file holding the statuses array read from the MCP
       // (each { name, statusCategory: { key } } or { name, category }).
@@ -162,7 +199,7 @@ if (isMain()) {
       if (findings.length === 0) { console.log('OK: no workflow-health warnings'); }
       else { console.log(findings.map(f => `WARN [${f.code}] ${f.message}`).join('\n')); }
     } else {
-      console.error('usage: config.mjs <init <provider>|validate|show|health <statuses.json>> [--force]');
+      console.error('usage: config.mjs <init <provider>|validate|show|panel|health <statuses.json>> [--force]');
       process.exit(2);
     }
   } catch (err) {
