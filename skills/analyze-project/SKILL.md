@@ -59,9 +59,20 @@ Resolve paths once:
    *multi-service booking*.) Judge coverage semantically — a shared word like
    "booking" does **not** mean a distinct feature is covered.
 
-6. **Adversarial final review.** Spawn the `final-reviewer` subagent with the
-   merged `knowledgeModel`. Merge its returned findings back in the same way
-   (`node "$KM" merge` over `[currentKnowledgeModel, reviewerFindings]`).
+6. **Adversarial final review + domain dedup.** First run the deterministic
+   dedup pre-pass: `node "$KM" dedup <km.json>` → string-similar domain merge
+   suggestions (e.g. `cash-desk`/`cashdesk`/`finance-cashdesk`). Spawn the
+   `final-reviewer` subagent with the merged `knowledgeModel` **and** those
+   suggestions; it confirms the string-similar ones and adds **meaning-similar**
+   dupes only it can see (`bookings`/`calendar-ui`, `roles-permissions`/
+   `capability-based-authz`), returning a `merges` list plus risks. Apply the
+   merges deterministically: `node "$KM" apply-merges <km.json> <merges.json>`
+   (folds sources/dependsOn, remaps references, drops self-deps — `mergeFindings`
+   cannot collapse ids). Then merge the reviewer's remaining findings back
+   (`node "$KM" merge` over `[dedupedKnowledgeModel, reviewerFindings]`).
+   **Scope:** dedup runs only here in a **fresh analysis** — `refresh-model` is
+   deterministic and does not re-run it; an existing model needs a one-time
+   interactive collapse before refresh.
 
 7. **Validate and report.** Run `node "$STORE" validate`; it must print `VALID`.
    Summarize: domain count, dependency edges, tech-debt by category, and the top
