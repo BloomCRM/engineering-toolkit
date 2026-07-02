@@ -6,6 +6,18 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-07-02
+
+### Added (v2.1 item A — done epic-status map)
+- The backlog now shows **what's already built**: `normalize` generates a
+  lightweight **Done** epic (`epic-done-<id>`, no stories) per `implemented`
+  domain, and stamps `status` (`done`/`in-progress`/`todo`) on every epic.
+- `sync-tracker` **transitions** epics to their status — create-then-transition,
+  resolving the transition id by name at runtime (`Done` / `In Progress`).
+  De-risked against BLM (Rovo exposes the transitions).
+- `build-project-model` no longer drafts stories for implemented domains (they
+  become deterministic Done epics), so the tracker is no longer to-do-only.
+
 ## [0.11.0] - 2026-07-02
 
 ### Added (v2.1 item K — done-detection depth)
