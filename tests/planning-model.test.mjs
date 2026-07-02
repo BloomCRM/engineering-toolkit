@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   PHASES, ensureDedicatedEpics, applyDefaultDoD, buildPlanningItems, normalizeModel,
-  TECH_DEBT_EPIC_ID, BUG_EPIC_ID
+  TECH_DEBT_EPIC_ID, BUG_EPIC_ID, derivePriority
 } from '../skills/build-project-model/scripts/planning-model.mjs';
 import { validateModel, DEFAULT_DOD } from '../skills/knowledge-store/scripts/store.mjs';
 
@@ -59,6 +59,30 @@ test('buildPlanningItems: defaults unknown phase to MVP and adds tech-debt items
   const items = buildPlanningItems(km, { d: { phase: 'Nonsense' } });
   assert.equal(items.find(i => i.ref === 'd').phase, 'MVP');
   assert.ok(items.some(i => i.ref === 'td1' && i.type === 'techdebt'));
+});
+
+test('derivePriority: maps phase to Jira priority', () => {
+  assert.equal(derivePriority('MVP'), 'High');
+  assert.equal(derivePriority('Production Ready'), 'Medium');
+  assert.equal(derivePriority('Public Release'), 'Low');
+  assert.equal(derivePriority('Enterprise'), 'Lowest');
+  assert.equal(derivePriority('Nonsense'), 'Medium');
+});
+
+test('normalizeModel: stamps priority on epics (from phase) and stories (inherit epic)', () => {
+  const model = {
+    schemaVersion: '1.0',
+    knowledgeModel: { domains: [], architecture: [], techDebt: [], infrastructure: [], security: [], risks: [] },
+    planningModel: { phases: [], items: [] },
+    backlog: { epics: [{
+      id: 'epic-cal', trackerKey: null, phase: 'MVP', type: 'feature', title: 'Calendar',
+      stories: [{ id: 's1', trackerKey: null, title: 'Day', acceptanceCriteria: [{ given: 'g', when: 'w', then: 't' }], definitionOfDone: ['code'], tasks: [] }]
+    }] }
+  };
+  const n = normalizeModel(model);
+  const epic = n.backlog.epics.find(e => e.id === 'epic-cal');
+  assert.equal(epic.priority, 'High');
+  assert.equal(epic.stories[0].priority, 'High');
 });
 
 test('normalizeModel: produces a model that passes store validation', () => {

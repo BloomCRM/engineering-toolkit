@@ -7,6 +7,19 @@ export const PHASES = ['MVP', 'Production Ready', 'Public Release', 'Scaling', '
 export const TECH_DEBT_EPIC_ID = 'epic-tech-debt';
 export const BUG_EPIC_ID = 'epic-bugs';
 
+// Deterministic Jira priority from phase (never LLM-guessed).
+export const PHASE_PRIORITY = {
+  'MVP': 'High',
+  'Production Ready': 'Medium',
+  'Public Release': 'Low',
+  'Scaling': 'Low',
+  'Enterprise': 'Lowest',
+  'AI': 'Lowest'
+};
+export function derivePriority(phase) {
+  return PHASE_PRIORITY[phase] || 'Medium';
+}
+
 export function ensureDedicatedEpics(epics) {
   const out = Array.isArray(epics) ? [...epics] : [];
   if (!out.some(e => e && e.type === 'techdebt')) {
@@ -51,6 +64,10 @@ export function normalizeModel(model, { decisions = {} } = {}) {
   const m = { ...model };
   m.backlog = m.backlog && Array.isArray(m.backlog.epics) ? m.backlog : { epics: [] };
   m.backlog.epics = applyDefaultDoD(ensureDedicatedEpics(m.backlog.epics));
+  for (const epic of m.backlog.epics) {
+    epic.priority = derivePriority(epic.phase);
+    for (const story of epic.stories || []) story.priority = epic.priority;
+  }
   m.planningModel = { phases: PHASES, items: buildPlanningItems(m.knowledgeModel || {}, decisions) };
   return m;
 }
