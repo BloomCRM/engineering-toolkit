@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const SCHEMA_VERSION = '1.0';
-export const TASK_CATEGORIES = ['backend', 'frontend', 'database', 'validation', 'tests', 'documentation', 'logging', 'monitoring', 'migration'];
+export const TASK_CATEGORIES = ['backend', 'frontend', 'database', 'validation', 'tests', 'documentation', 'logging', 'monitoring', 'migration', 'admin', 'design'];
 export const DEFAULT_DOD = ['code', 'unit', 'integration', 'docs', 'review', 'ci'];
 
 export function storePath() {
@@ -39,6 +39,7 @@ export function validateModel(m) {
     for (const story of epic.stories) {
       seeId(story.id, 'story');
       if (!story.title) errors.push(`story ${story.id}: missing title`);
+      if ('needsDecision' in story && typeof story.needsDecision !== 'boolean') errors.push(`story ${story.id}: needsDecision must be boolean`);
       if (!Array.isArray(story.acceptanceCriteria) || story.acceptanceCriteria.length === 0) {
         errors.push(`story ${story.id}: acceptanceCriteria must be a non-empty array`);
       } else {

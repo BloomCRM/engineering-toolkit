@@ -89,3 +89,17 @@ test('migrateModel: upgrades an older version and reports changed=true', () => {
   assert.equal(r.model.schemaVersion, SCHEMA_VERSION);
   assert.equal(r.changed, true);
 });
+
+// --- v2.1 D: taxonomy + needs-decision ---
+import { TASK_CATEGORIES } from '../skills/knowledge-store/scripts/store.mjs';
+
+test('TASK_CATEGORIES includes admin and design', () => {
+  assert.ok(TASK_CATEGORIES.includes('admin'));
+  assert.ok(TASK_CATEGORIES.includes('design'));
+});
+
+test('validateModel: needsDecision must be boolean when present', () => {
+  const m = valid();
+  m.backlog.epics[0].stories[0].needsDecision = 'yes';
+  assert.ok(validateModel(m).some(e => e.includes('needsDecision')));
+});

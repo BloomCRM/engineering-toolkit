@@ -59,6 +59,7 @@
                     "id": { "type": "string" },
                     "trackerKey": { "type": ["string", "null"] },
                     "title": { "type": "string" },
+                    "needsDecision": { "type": "boolean" },
                     "acceptanceCriteria": {
                       "type": "array",
                       "minItems": 1,
@@ -87,7 +88,7 @@
                           "trackerKey": { "type": ["string", "null"] },
                           "category": {
                             "type": "string",
-                            "enum": ["backend", "frontend", "database", "validation", "tests", "documentation", "logging", "monitoring", "migration"]
+                            "enum": ["backend", "frontend", "database", "validation", "tests", "documentation", "logging", "monitoring", "migration", "admin", "design"]
                           },
                           "subtasks": { "type": "array" }
                         }
