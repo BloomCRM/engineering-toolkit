@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "eng",
   "displayName": "Engineering Intelligence",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "Turn repository docs into a structured engineering backlog and sync it to your tracker.",
   "author": { "name": "Volodymyr Kostyrko" },
   "license": "MIT",

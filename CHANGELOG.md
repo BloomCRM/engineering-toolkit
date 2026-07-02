@@ -6,6 +6,21 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-07-02
+
+### Changed (v2.1 batch 1 — faithful-backlog rendering)
+- **Priority** derived deterministically from `phase` (MVP→High … Enterprise→Lowest)
+  and stamped on epics/stories; `sync-tracker` now sets the Jira priority (was
+  all-Medium default).
+- **Discipline tags** — task summaries rendered as `[BE]/[FE]/[DB]/…` from
+  `task.category`, plus a `disc:<category>` label.
+- **Category taxonomy** extended with `admin` and `design`; new orthogonal
+  `needsDecision` flag on stories → `needs-decision` label + `[?]` prefix.
+- **English output** — agents and build write all titles/descriptions/AC in
+  English regardless of the repository's language.
+- `sync-tracker` update path is now **conservative** — refreshes labels/tag/
+  priority but won't clobber human-edited descriptions.
+
 ## [0.9.0] - 2026-07-02
 
 ### Added
