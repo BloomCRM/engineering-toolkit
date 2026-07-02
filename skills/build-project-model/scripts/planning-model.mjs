@@ -97,6 +97,14 @@ export function normalizeModel(model, { decisions = {} } = {}) {
   return m;
 }
 
+// Would a deterministic refresh change anything? (new done/dedicated epics, or missing priority/status)
+export function normalizeWouldChange(model) {
+  const epics = (model && model.backlog && model.backlog.epics) || [];
+  const n = normalizeModel(JSON.parse(JSON.stringify(model || {})));
+  if (n.backlog.epics.length !== epics.length) return true;
+  return epics.some(e => !e.priority || !e.status);
+}
+
 function isMain() {
   return process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
 }

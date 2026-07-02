@@ -53,3 +53,19 @@ test('pipelineState: flags mirror the model', () => {
     { c: true, r: true, km: true, b: true }
   );
 });
+
+// --- smart run: rerun mode ---
+import { recommendRerunMode } from '../skills/run/scripts/pipeline.mjs';
+
+test('recommendRerunMode: repo diff => reanalyze', () => {
+  assert.equal(recommendRerunMode({ hasRepoDiff: true, refreshWouldChange: false }), 'reanalyze');
+  assert.equal(recommendRerunMode({ hasRepoDiff: true, refreshWouldChange: true }), 'reanalyze');
+});
+
+test('recommendRerunMode: no diff but refresh would change => refresh', () => {
+  assert.equal(recommendRerunMode({ hasRepoDiff: false, refreshWouldChange: true }), 'refresh');
+});
+
+test('recommendRerunMode: no diff, layer current => in-sync', () => {
+  assert.equal(recommendRerunMode({ hasRepoDiff: false, refreshWouldChange: false }), 'in-sync');
+});

@@ -58,6 +58,15 @@ export function pipelineState(config, model) {
   return state;
 }
 
+// In the review-drift state, decide what a re-run should do based on freshness.
+// hasRepoDiff: git diff since source.commit found changes. refreshWouldChange:
+// the deterministic normalize would add/stamp something (e.g. a new done-map).
+export function recommendRerunMode({ hasRepoDiff, refreshWouldChange } = {}) {
+  if (hasRepoDiff) return 'reanalyze';       // repo moved → re-analyze the delta (agents)
+  if (refreshWouldChange) return 'refresh';  // repo same, deterministic layer stale → refresh only
+  return 'in-sync';                          // nothing to do
+}
+
 function isMain() {
   return process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
 }

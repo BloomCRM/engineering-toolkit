@@ -133,3 +133,27 @@ test('normalizeModel: prepends done-epics and stamps status; still validates', (
   assert.equal(n.backlog.epics.find(e => e.id === 'epic-cal').status, 'todo');
   assert.deepEqual(validateModel(n), []);
 });
+
+// --- smart run: normalizeWouldChange ---
+import { normalizeWouldChange } from '../skills/build-project-model/scripts/planning-model.mjs';
+
+test('normalizeWouldChange: model with implemented domain but no done-epic => true', () => {
+  const m = {
+    schemaVersion: '1.0',
+    knowledgeModel: { domains: [{ id: 'bookings', name: 'Bookings', status: 'implemented' }], architecture: [], techDebt: [], infrastructure: [], security: [], risks: [] },
+    planningModel: { phases: [], items: [] },
+    backlog: { epics: [{ id: 'e1', trackerKey: 'BLM-1', phase: 'MVP', type: 'feature', title: 'X', priority: 'High', status: 'todo', stories: [] }] }
+  };
+  assert.equal(normalizeWouldChange(m), true);
+});
+
+test('normalizeWouldChange: already-normalized model => false', () => {
+  const base = {
+    schemaVersion: '1.0',
+    knowledgeModel: { domains: [], architecture: [], techDebt: [], infrastructure: [], security: [], risks: [] },
+    planningModel: { phases: [], items: [] },
+    backlog: { epics: [] }
+  };
+  const n = normalizeModel(JSON.parse(JSON.stringify(base)));
+  assert.equal(normalizeWouldChange(n), false);
+});
