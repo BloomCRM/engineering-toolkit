@@ -22,4 +22,6 @@ Rules for every agent:
 - Always cite `sources` (file paths, optionally `#Lnn`).
 - Stay in your lane (see your agent file), but you may add `risks` for anything
   that looks wrong.
+- **Write all field text (names, notes, titles) in English**, regardless of the
+  repository's language. Read any language; always write English.
 - Return JSON only — no prose, no code fences.

@@ -53,6 +53,8 @@ Resolve paths once:
 
 ## Rules
 
+- **All output is English** — titles, notes, descriptions. Agents read any
+  language (the repo may be non-English) but always write English.
 - Agents must not trust a single document — contradictions become `risks`.
 - The merge is deterministic (the script), not the model's opinion — always go
   through `knowledge-model.mjs`.

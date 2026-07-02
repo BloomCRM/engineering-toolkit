@@ -56,6 +56,8 @@ Resolve paths once:
 
 ## Rules
 
+- **Write all epic/story/task titles, descriptions and acceptance criteria in
+  English**, regardless of the repository's language.
 - Bugs and tech-debt live in their dedicated epics, never inside feature epics.
 - Every story has acceptance criteria (Given/When/Then) and a Definition of Done.
 - Never generate giant tasks — split by category.
