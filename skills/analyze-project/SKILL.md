@@ -43,11 +43,27 @@ Resolve paths once:
    merged `knowledgeModel`. Write that object into `.eng/project-model.json`
    under `knowledgeModel`, and set `source.commit`/`branch`/`generatedAt`.
 
-5. **Adversarial final review.** Spawn the `final-reviewer` subagent with the
+5. **Completeness critic (documented-but-un-modelled plans).** The panel is
+   code-biased and under-extracts *planned* work that lives only in docs. So after
+   the merge, run a critic pass over the **forward-planning docs** — the roadmap,
+   `docs/next-session.md`, `specs/`, `docs/architecture/*`, any admin/product
+   feedback doc: list every documented planned feature/roadmap item/TODO-feature.
+   For each, judge whether an **existing merged domain already covers it**, and tag
+   it `coveredBy: <domainId>` or `coveredBy: null`. Write the list as
+   `[{ name, coveredBy, sources }]` to a temp file and run
+   `node "$KM" gaps <km.json> <plans.json>` → `risks` of kind `unknown` for the
+   real misses (no coverage, or coverage pointing at a non-existent domain). Merge
+   those risks back (`node "$KM" merge` over `[currentKnowledgeModel, gapsOutput]`),
+   and add a `planned`-status **domain** for any genuine feature that deserves its
+   own backlog line. (This is what would have caught Bloom's missing
+   *multi-service booking*.) Judge coverage semantically — a shared word like
+   "booking" does **not** mean a distinct feature is covered.
+
+6. **Adversarial final review.** Spawn the `final-reviewer` subagent with the
    merged `knowledgeModel`. Merge its returned findings back in the same way
    (`node "$KM" merge` over `[currentKnowledgeModel, reviewerFindings]`).
 
-6. **Validate and report.** Run `node "$STORE" validate`; it must print `VALID`.
+7. **Validate and report.** Run `node "$STORE" validate`; it must print `VALID`.
    Summarize: domain count, dependency edges, tech-debt by category, and the top
    risks (contradictions first).
 
