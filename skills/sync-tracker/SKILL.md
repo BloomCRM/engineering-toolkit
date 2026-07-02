@@ -77,6 +77,11 @@ Resolve paths once:
      tag-prefix / priority (safe, additive); overwrite a description only if it is
      empty or unchanged since the last eng-sync — otherwise warn and skip, to
      avoid clobbering human edits in Jira.
+     **Translation override:** after `/eng:translate`, the model's titles /
+     descriptions / acceptance criteria have been rewritten to English. Those must
+     be pushed (summary + description) — this is the toolkit rewriting its **own**
+     content, not clobbering a human's. Still skip an issue a human has visibly
+     edited since the last eng-sync.
    - **epic status (the done-map):** after creating/finding an epic, if
      `epic.status` is `done` or `in-progress`, **transition it**. Jira sets the
      initial status on create, so this is create-then-transition: call the

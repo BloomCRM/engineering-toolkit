@@ -6,6 +6,17 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-07-02
+
+### Added (v2.1 item O — English on existing issues)
+- `translate` skill (`/eng:translate`) — rewrites an existing model's text
+  (titles, descriptions, acceptance criteria) to English **in place**, keeping
+  every id/trackerKey and the structure, so the next sync *updates* the same
+  issues (no duplicates). Distinct from a full re-run (which re-drafts → dupes).
+  `translate.mjs` (`hasCyrillic`/`collectTranslatable`/`applyTranslations`) only
+  targets non-English nodes; `sync-tracker` gets a **translation override** to
+  push the rewritten text.
+
 ## [0.14.0] - 2026-07-02
 
 ### Added
