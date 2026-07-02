@@ -89,6 +89,41 @@ re-run setup.
   category, so the done-map works on any workflow. Transition ids are
   per-project — always resolve them at runtime from a live `getTransitions`.
 
+## 6a. Recommended project template (advisory)
+
+`setup-toolkit` only **verifies** and **warns** — it never edits a user's Jira
+(no admin tools exist on the Rovo MCP). When its workflow-health check flags
+problems, point the user at this template as the fix to apply by hand in the
+Jira UI.
+
+**Issue types:** `Epic` / `Story` / `Task` / `Sub-task` / `Bug`. Drop `Feature`
+(unused; `Story`/`Task` cover it) and use the **English** canonical names —
+locale-rendered type names have already caused "valid issue type" sync errors.
+
+**Per-issue-type workflows.** Team-managed Jira allows a distinct workflow per
+issue type. An Epic is a long-lived container whose real signal is child
+completion %, so it stays coarse; a Story/Task/Bug has a genuine dev+QA
+lifecycle:
+
+| Issue type | Statuses (one column each) |
+|---|---|
+| **Epic** | To Do → In Progress → Done (coarse — 3) |
+| **Story / Task / Bug** | To Do → In Progress → In Review → Done (4) |
+| **Sub-task** | To Do → In Progress → Done (3) |
+
+**Rules:**
+- **1 status = 1 column** within each type's workflow.
+- Every status sits in its **correct category** — `To Do` → `new`,
+  `In Progress`/`In Review` → `indeterminate`, `Done` → `done`. Miscategorized
+  statuses make category-based boards and reports lie.
+- **No duplicate not-started statuses** — one `To Do`, not the
+  Backlog + Idea + To Do triplication.
+
+This template is safe for the toolkit to automate against **only because of the
+category-based transition resolution** (see §6): the done-map is agnostic to
+each type's exact status set, so it works whether an Epic has 3 statuses or a
+Story has 4.
+
 ## 7. Connection (automated setup)
 
 `setup-toolkit` runs these itself after the user picks an option in a popup.
