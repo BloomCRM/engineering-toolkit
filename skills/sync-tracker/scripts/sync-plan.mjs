@@ -39,6 +39,51 @@ export function resolveTransitionForStatus(transitions, status) {
   return resolveTransitionByCategory(transitions, categoryKey);
 }
 
+// --- Conservative-update marker (item G) -----------------------------------
+// Re-sync must UPDATE toolkit-owned fields without clobbering human edits. We
+// stamp each issue with a hash of the description eng last wrote (a label). On
+// re-sync, if the issue's current description still hashes to that marker, eng
+// owns it and may overwrite; if it differs, a human edited it → skip (warn).
+export const ENG_HASH_PREFIX = 'eng-hash:';
+
+// FNV-1a 32-bit → base36. Zero-dep, deterministic, short enough for a label.
+export function engHash(text) {
+  let h = 0x811c9dc5;
+  const s = String(text ?? '');
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h.toString(36);
+}
+
+export function engHashLabel(text) {
+  return `${ENG_HASH_PREFIX}${engHash(text)}`;
+}
+
+// Pull the stored eng-hash out of an issue's label list (or null).
+export function readEngHash(labels) {
+  for (const l of labels || []) {
+    if (typeof l === 'string' && l.startsWith(ENG_HASH_PREFIX)) return l.slice(ENG_HASH_PREFIX.length);
+  }
+  return null;
+}
+
+// Decide whether an update may overwrite the Jira description.
+// - force → always overwrite (the `--force-descriptions` escape hatch).
+// - empty current → overwrite (nothing to protect).
+// - no marker on non-empty text → skip (can't prove eng owns it; protect it).
+// - marker matches current → eng owns it, overwrite.
+// - marker differs → a human edited since last sync, skip.
+export function decideDescriptionUpdate({ current, lastHash, force = false } = {}) {
+  if (force) return { action: 'overwrite', reason: 'forced' };
+  const cur = String(current ?? '').trim();
+  if (cur === '') return { action: 'overwrite', reason: 'empty' };
+  if (!lastHash) return { action: 'skip', reason: 'no-marker' };
+  if (engHash(cur) === lastHash) return { action: 'overwrite', reason: 'unchanged-since-sync' };
+  return { action: 'skip', reason: 'human-edited' };
+}
+
 // Flatten backlog into a parent-first list of nodes.
 export function flattenBacklog(backlog) {
   const nodes = [];
