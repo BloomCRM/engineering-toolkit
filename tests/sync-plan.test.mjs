@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   flattenBacklog, engLabel, buildSyncPlan, applyResults, validateReadyForSync,
-  STATUS_CATEGORY_BY_INTENT, resolveTransitionByCategory, resolveTransitionForStatus
+  STATUS_CATEGORY_BY_INTENT, resolveTransitionByCategory, resolveTransitionForStatus,
+  engHash, engHashLabel, readEngHash, decideDescriptionUpdate, ENG_HASH_PREFIX
 } from '../skills/sync-tracker/scripts/sync-plan.mjs';
 
 // Shape returned by Atlassian official getTransitionsForJiraIssue.
@@ -140,4 +141,51 @@ test('resolveTransitionForStatus: resolves straight from epic status intent', ()
 test('resolveTransitionForStatus: unknown status yields null; todo maps to the new category', () => {
   assert.equal(resolveTransitionForStatus(transitions(), 'todo'), '11');
   assert.equal(resolveTransitionForStatus(transitions(), 'bogus'), null);
+});
+
+// --- conservative-update marker (item G) ---
+test('engHash: deterministic and change-sensitive', () => {
+  assert.equal(engHash('hello world'), engHash('hello world'));
+  assert.notEqual(engHash('hello world'), engHash('hello world!'));
+  assert.equal(typeof engHash('x'), 'string');
+});
+
+test('engHashLabel: prefixed label carrying the content hash', () => {
+  assert.equal(engHashLabel('abc'), `${ENG_HASH_PREFIX}${engHash('abc')}`);
+});
+
+test('readEngHash: extracts the stored hash from a label list, else null', () => {
+  assert.equal(readEngHash(['eng-sync', engHashLabel('desc'), 'phase:MVP']), engHash('desc'));
+  assert.equal(readEngHash(['eng-sync', 'phase:MVP']), null);
+  assert.equal(readEngHash(null), null);
+});
+
+test('decideDescriptionUpdate: empty current description is always overwritten', () => {
+  assert.equal(decideDescriptionUpdate({ current: '', lastHash: null }).action, 'overwrite');
+  assert.equal(decideDescriptionUpdate({ current: '   ', lastHash: 'abc' }).action, 'overwrite');
+});
+
+test('decideDescriptionUpdate: force overwrites regardless', () => {
+  const d = decideDescriptionUpdate({ current: 'human wrote this', lastHash: null, force: true });
+  assert.equal(d.action, 'overwrite');
+  assert.equal(d.reason, 'forced');
+});
+
+test('decideDescriptionUpdate: no marker on a non-empty description => skip (protect)', () => {
+  const d = decideDescriptionUpdate({ current: 'legacy or human text', lastHash: null });
+  assert.equal(d.action, 'skip');
+  assert.equal(d.reason, 'no-marker');
+});
+
+test('decideDescriptionUpdate: description unchanged since last eng-sync => overwrite', () => {
+  const text = 'what eng wrote last time';
+  const d = decideDescriptionUpdate({ current: text, lastHash: engHash(text) });
+  assert.equal(d.action, 'overwrite');
+  assert.equal(d.reason, 'unchanged-since-sync');
+});
+
+test('decideDescriptionUpdate: human edited since last sync => skip', () => {
+  const d = decideDescriptionUpdate({ current: 'human changed it', lastHash: engHash('what eng wrote') });
+  assert.equal(d.action, 'skip');
+  assert.equal(d.reason, 'human-edited');
 });

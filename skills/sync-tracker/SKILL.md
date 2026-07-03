@@ -30,7 +30,10 @@ Resolve paths once:
 - **validate** — run `node "$STORE" validate`; confirm the backlog is sync-ready
   (no orphans, AC + DoD present). No MCP needed.
 - **sync** — perform the writes, but only after showing the diff and getting an
-  explicit **confirmation**.
+  explicit **confirmation**. Add **`--force-descriptions`** to overwrite
+  descriptions even when the conservative marker check would skip them — use it
+  only for a known-safe backfill (e.g. the first re-sync before anyone has
+  hand-edited the issues).
 
 ## Steps
 
@@ -69,14 +72,22 @@ Resolve paths once:
      parent link from the parent's freshly created `trackerKey`. Set the Jira
      **priority** from the node's `priority` field (already derived from phase).
      Add labels: the `phase` label (per `config.mappings.phaseField`), the
-     `eng-id:<engId>` label, `disc:<category>` for tasks, and — if the node's
-     `needsDecision` is true — `needs-decision` (and prefix the title with `[?]`).
-     Record the new issue key.
-   - **update**: push the same fields (summary+tag, description, priority, labels)
-     to the existing `trackerKey`. **Conservative rule:** always refresh labels /
-     tag-prefix / priority (safe, additive); overwrite a description only if it is
-     empty or unchanged since the last eng-sync — otherwise warn and skip, to
-     avoid clobbering human edits in Jira.
+     `eng-id:<engId>` label, the `eng-hash:` marker (`engHashLabel(description)`
+     from `sync-plan.mjs`) so later re-syncs can tell eng's text from a human's
+     (item G), `disc:<category>` for tasks, and — if the node's `needsDecision`
+     is true — `needs-decision` (and prefix the title with `[?]`). Record the new
+     issue key.
+   - **update**: push the toolkit-owned fields to the existing `trackerKey`.
+     **Conservative rule (item G):** always refresh labels / tag-prefix /
+     priority / epic status (safe, additive). For the **description**, decide per
+     issue: read the issue's current description and its `eng-hash:<h>` label,
+     then call `decideDescriptionUpdate({ current, lastHash, force })` from
+     `sync-plan.mjs` — it returns `overwrite` (empty, or the current text still
+     hashes to the stored marker = eng owns it) or `skip` (no marker on non-empty
+     text, or the hash differs = a human edited it → warn, leave it). When you do
+     overwrite, **re-stamp** the `eng-hash:` label with `engHashLabel(newText)`
+     so the next re-sync can tell eng's text from a human's. `force` comes from
+     `--force-descriptions` (see Modes) — used for the known-safe first backfill.
      **Translation override:** after `/eng:translate`, the model's titles /
      descriptions / acceptance criteria have been rewritten to English. Those must
      be pushed (summary + description) — this is the toolkit rewriting its **own**
@@ -117,6 +128,7 @@ Resolve paths once:
 - `dry-run` is the default; `sync` NEVER writes before a shown diff + confirmation.
 - Create parent-first (Epic before Story before Task before Sub-task).
 - Every created issue carries an `eng-id:<engId>` label so re-syncs reconcile
-  instead of duplicating.
+  instead of duplicating, and an `eng-hash:<h>` label marking the description eng
+  wrote, so a conservative re-sync (item G) never clobbers a human's edit.
 - Jira-only in v1; a non-Jira/stub/incomplete config blocks `sync` (but not
   dry-run/report).
