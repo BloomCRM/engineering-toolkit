@@ -97,6 +97,12 @@ Resolve paths once:
      project lacks it), skip silently. `todo` epics need no transition. This is
      what surfaces "what's already built" as green Done epics instead of a
      to-do-only tracker.
+   - **timeline (item F):** if a done epic carries `startDate` / `dueDate` (real
+     git dates from build), set Jira start/due on it. **Future epics get no
+     dates** — their `sequence` is the ordering signal, not a deadline; do not
+     fabricate due dates. Jira start/due are next-gen date fields; if the
+     connected MCP cannot write them, warn once and skip dates (everything else
+     still syncs) — see the adapter's date-field note.
    Collect an `engId → issueKey` result map.
 
 8. **Record + validate.** Write the result keys back into the model (the planner's
