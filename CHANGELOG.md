@@ -6,6 +6,62 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-07-03
+
+First stable release. Completes the **v2.1 "faithful backlog" quality roadmap**
+(items P, Q, M, L, I, F, H, G — the last eight before 1.0). Shipped incrementally
+as 0.16.0–0.23.0; summarized here.
+
+### Added
+- **P — transitions by status category** (0.16.0): `sync-plan.mjs`
+  `resolveTransitionByCategory` / `resolveTransitionForStatus` +
+  `STATUS_CATEGORY_BY_INTENT`. The done-map resolves the Done/In-Progress
+  transition by universal `statusCategory.key` (`new`/`indeterminate`/`done`),
+  not by a localizable status name — robust on any Jira template.
+- **Q — workflow-health check + recommended template** (0.17.0): `config.mjs`
+  `checkWorkflowHealth(statuses)` + `STATUS_CATEGORIES` + `health` CLI. Verify-only
+  WARNs on miscategorized statuses, >1 not-started status, or an empty category.
+  `jira.md` §6a documents the recommended per-issue-type template (Epic 3-coarse /
+  Story·Task·Bug 4 with In Review / Sub-task 3; drop `Feature`, English names).
+- **M — completeness critic** (0.18.0): `knowledge-model.mjs`
+  `findCoverageGaps(km, plans)` + `gapsToRisks` + `gaps` CLI. The critic tags each
+  documented plan `coveredBy:<domainId|null>`; the script flags no-coverage and
+  broken-coverage as `unknown` risks — surfaces documented-but-un-modelled work
+  (caught the missed multi-service booking). `product-owner` now extracts
+  planned-but-not-coded features as `status:planned` domains.
+- **L — semantic domain dedup** (0.19.0): `knowledge-model.mjs`
+  `suggestDomainMerges(domains)` (string-similar pre-pass) +
+  `applyDomainMerges(km, merges)` (deterministic collapse: folds duplicates,
+  remaps `dependsOn`, drops self-deps — closes the gap that `mergeFindings` is
+  additive-by-id and cannot collapse) + `dedup`/`apply-merges` CLI.
+  `final-reviewer` confirms string-similar and hunts meaning-similar duplicates.
+- **I — ux-reviewer + security-engineer agents + configurable panel** (0.20.0):
+  two clean-lane, grounded agents (absence → `risk: unknown`); `devops-engineer`
+  drops the generic security bullet. `config.mjs` `KNOWN_AGENTS` (9) + `PANELS`
+  (core 4 / standard 7 / deep 9) + `resolveAnalysisPanel` + `panel` CLI. ux+security
+  run only on the deep tier, so default cost is unchanged.
+- **F — timeline** (0.21.0): `planning-model.mjs` `parseGitDates(log)` (real
+  commit-range dates for done work, timezone-aware) + `sequenceFutureEpics(epics)`
+  (Kahn ordering by phase + `dependsOn`, stamps `sequence`; no fabricated dates
+  for future work) + `git-dates` CLI. `normalizeModel` auto-stamps `sequence`.
+- **G — conservative-update marker** (0.23.0): `sync-plan.mjs` `engHash` +
+  `engHashLabel` + `readEngHash` + `decideDescriptionUpdate`. Each issue carries
+  an `eng-hash:` label of the description eng wrote; re-sync overwrites only when
+  the current text still hashes to that marker (eng owns it), else skips to
+  protect a human edit. `--force-descriptions` for the known-safe first backfill.
+
+### Changed
+- **H — subtask granularity** (0.22.0): `planning-model.mjs` `countBacklog` +
+  `checkGranularity` (`high-subtask-share` / `singleton-subtask` / `dense-story`)
+  + `granularity` CLI. `build-project-model` guidance tightened — a sub-task must
+  be independently meaningful; a one-subtask task *is* the task.
+- `devops-engineer` scope narrowed to infra/CI/CD (app security moved to
+  `security-engineer`).
+
+### Notes
+- 163 `node:test` cases green; `claude plugin validate --strict` green.
+- 10 reviewer agents (added `ux-reviewer`, `security-engineer`).
+
 ## [0.15.0] - 2026-07-02
 
 ### Added (v2.1 item O — English on existing issues)
