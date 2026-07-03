@@ -39,7 +39,10 @@ Resolve paths once:
    `Phase -> Epic -> Story -> Task -> Subtask`. Every story needs >= 1 acceptance
    criterion. Put bugs into the dedicated **Bug Fixes** epic and tech-debt into
    the dedicated **Technical Debt** epic — never mix them into feature epics.
-   Keep tasks small; never generate giant tasks.
+   Keep tasks small; never generate giant tasks. **But do not over-decompose
+   (item H):** a sub-task must be **independently meaningful and assignable** —
+   no "ради галочки" splits. If a task needs only one sub-task, it *is* the task
+   (no sub-task). Prefer a well-scoped task over a task-plus-one-subtask.
 
 4. **Write the draft** into `.eng/project-model.json` under `backlog`.
 
@@ -63,7 +66,11 @@ Resolve paths once:
 
 7. **Validate and report.** Run `node "$STORE" validate` (must print `VALID`),
    then `node "$STORE" inspect`. Report epics/stories/tasks counts, items per
-   phase, and how many bugs / tech-debt items were captured.
+   phase, and how many bugs / tech-debt items were captured. Also run
+   `node "$PLAN" granularity .eng/project-model.json` — surface any
+   over-decomposition warnings (`high-subtask-share`, `singleton-subtask`,
+   `dense-story`) and, if flagged, revisit the breakdown before syncing. Advisory
+   (item H): a soft reviewer check, not a hard gate.
 
 ## Rules
 
