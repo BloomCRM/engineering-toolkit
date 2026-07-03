@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   PHASES, ensureDedicatedEpics, applyDefaultDoD, buildPlanningItems, normalizeModel,
   TECH_DEBT_EPIC_ID, BUG_EPIC_ID, derivePriority, deriveEpicStatus, buildDoneEpics,
-  parseGitDates, sequenceFutureEpics
+  parseGitDates, sequenceFutureEpics, countBacklog, checkGranularity
 } from '../skills/build-project-model/scripts/planning-model.mjs';
 import { validateModel, DEFAULT_DOD } from '../skills/knowledge-store/scripts/store.mjs';
 
@@ -210,6 +210,53 @@ test('normalizeModel: stamps sequence on future epics, not on done epics', () =>
   assert.equal(n.backlog.epics.find(e => e.id === 'epic-cal').sequence, 1);
   assert.equal(n.backlog.epics.find(e => e.id === 'epic-done-bookings').sequence, undefined);
   assert.deepEqual(validateModel(n), []);
+});
+
+// --- subtask granularity (item H) ---
+function granularityBacklog(subs) {
+  // one epic → one story → one task → `subs` subtasks
+  return { epics: [{ id: 'e', stories: [{ id: 's', tasks: [{ id: 't', subtasks: subs.map((id) => ({ id })) }] }] }] };
+}
+
+test('countBacklog: counts each level and total', () => {
+  const c = countBacklog(granularityBacklog(['a', 'b']));
+  assert.deepEqual(c, { epics: 1, stories: 1, tasks: 1, subtasks: 2, total: 5 });
+});
+
+test('countBacklog: empty backlog is all zeros', () => {
+  assert.deepEqual(countBacklog({ epics: [] }), { epics: 0, stories: 0, tasks: 0, subtasks: 0, total: 0 });
+  assert.deepEqual(countBacklog(null), { epics: 0, stories: 0, tasks: 0, subtasks: 0, total: 0 });
+});
+
+test('checkGranularity: a balanced backlog raises no warnings', () => {
+  const backlog = { epics: [{ id: 'e', stories: [
+    { id: 's1', tasks: [{ id: 't1', subtasks: [{ id: 'a' }, { id: 'b' }] }, { id: 't2', subtasks: [] }] },
+    { id: 's2', tasks: [{ id: 't3', subtasks: [{ id: 'c' }, { id: 'd' }] }] },
+  ] }] };
+  assert.deepEqual(checkGranularity(backlog).findings, []);
+});
+
+test('checkGranularity: over-decomposition (subtask share too high) warns', () => {
+  const r = checkGranularity(granularityBacklog(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']));
+  assert.ok(r.findings.some(f => f.code === 'high-subtask-share'));
+});
+
+test('checkGranularity: a task with exactly one sub-task is flagged (pointless split)', () => {
+  const r = checkGranularity(granularityBacklog(['only']));
+  const s = r.findings.find(f => f.code === 'singleton-subtask');
+  assert.ok(s);
+  assert.deepEqual(s.tasks, ['t']);
+});
+
+test('checkGranularity: a story exceeding the per-story cap is flagged', () => {
+  const r = checkGranularity(granularityBacklog(['a', 'b', 'c', 'd', 'e', 'f', 'g']), { maxSubtaskShare: 1 });
+  assert.ok(r.findings.some(f => f.code === 'dense-story'));
+});
+
+test('checkGranularity: thresholds are configurable', () => {
+  const backlog = granularityBacklog(['a', 'b']);
+  assert.ok(checkGranularity(backlog, { maxSubtaskShare: 0.1 }).findings.some(f => f.code === 'high-subtask-share'));
+  assert.ok(!checkGranularity(backlog, { maxSubtaskShare: 0.9 }).findings.some(f => f.code === 'high-subtask-share'));
 });
 
 // --- smart run: normalizeWouldChange ---

@@ -79,6 +79,51 @@ export function sequenceFutureEpics(epics) {
   return emitted.map((e, i) => ({ ...e, sequence: i + 1 }));
 }
 
+// --- Subtask granularity (item H) -------------------------------------------
+// ~70% of the first BLM run were sub-tasks — likely over-decomposed. Count the
+// hierarchy and flag over-decomposition so a reviewer can push back. Judgment
+// aid, not a hard gate: a sub-task must be independently meaningful.
+export function countBacklog(backlog) {
+  let epics = 0, stories = 0, tasks = 0, subtasks = 0;
+  for (const e of backlog?.epics || []) {
+    epics++;
+    for (const s of e.stories || []) {
+      stories++;
+      for (const t of s.tasks || []) { tasks++; subtasks += (t.subtasks || []).length; }
+    }
+  }
+  return { epics, stories, tasks, subtasks, total: epics + stories + tasks + subtasks };
+}
+
+export function checkGranularity(backlog, opts = {}) {
+  const { maxSubtaskShare = 0.6, maxSubtasksPerStory = 6 } = opts;
+  const counts = countBacklog(backlog);
+  const findings = [];
+  const share = counts.total ? counts.subtasks / counts.total : 0;
+  if (counts.total > 0 && share > maxSubtaskShare) {
+    findings.push({ level: 'warn', code: 'high-subtask-share', share: Number(share.toFixed(2)),
+      message: `Sub-tasks are ${Math.round(share * 100)}% of all issues (> ${Math.round(maxSubtaskShare * 100)}%) — likely over-decomposed. A sub-task must be independently meaningful and assignable.` });
+  }
+  const singletons = [];
+  for (const e of backlog?.epics || []) for (const s of e.stories || []) for (const t of s.tasks || []) {
+    if ((t.subtasks || []).length === 1) singletons.push(t.id);
+  }
+  if (singletons.length) {
+    findings.push({ level: 'warn', code: 'singleton-subtask', tasks: singletons,
+      message: `${singletons.length} task(s) have exactly one sub-task — the split adds nothing; fold the sub-task into the task.` });
+  }
+  const dense = [];
+  for (const e of backlog?.epics || []) for (const s of e.stories || []) {
+    const n = (s.tasks || []).reduce((a, t) => a + (t.subtasks || []).length, 0);
+    if (n > maxSubtasksPerStory) dense.push({ story: s.id, subtasks: n });
+  }
+  if (dense.length) {
+    findings.push({ level: 'warn', code: 'dense-story', stories: dense,
+      message: `${dense.length} story(ies) exceed ${maxSubtasksPerStory} sub-tasks — consider consolidating.` });
+  }
+  return { counts, findings };
+}
+
 export function ensureDedicatedEpics(epics) {
   const out = Array.isArray(epics) ? [...epics] : [];
   if (!out.some(e => e && e.type === 'techdebt')) {
@@ -174,8 +219,12 @@ if (isMain()) {
     } else if (cmd === 'git-dates') {
       // git-dates <logfile> → { start, end } from `git log --format=%cI -- <sources>`.
       console.log(JSON.stringify(parseGitDates(readFileSync(file, 'utf8'))));
+    } else if (cmd === 'granularity') {
+      // granularity <model.json> → counts + over-decomposition warnings.
+      const model = JSON.parse(readFileSync(file, 'utf8'));
+      console.log(JSON.stringify(checkGranularity(model.backlog || model), null, 2));
     } else {
-      console.error('usage: planning-model.mjs <normalize [--write] | would-change | git-dates> <file>');
+      console.error('usage: planning-model.mjs <normalize [--write] | would-change | git-dates | granularity> <file>');
       process.exit(2);
     }
   } catch (err) {
