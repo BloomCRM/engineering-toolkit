@@ -44,6 +44,7 @@ on the substring, record the **exact** discovered names into
 | phase | `labels` (one label) or `fixVersions` | per `config.mappings.phaseField` |
 | type | issue type | from §2 |
 | trackerKey | issue key (e.g. `BLOOM-123`) | stored back into the model |
+| startDate / dueDate | start / due date | **done epics only** — real git commit-range dates (item F). Next-gen date fields; may not be writable on every MCP — if a write fails, warn once and skip dates, don't fail the sync. Future work carries a `sequence`, never a fabricated date. |
 
 ## 4. Operations (logical → example tool names)
 

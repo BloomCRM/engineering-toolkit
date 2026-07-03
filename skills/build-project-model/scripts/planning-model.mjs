@@ -41,6 +41,44 @@ export function buildDoneEpics(knowledgeModel) {
   return epics;
 }
 
+// --- Timeline (item F) ------------------------------------------------------
+// Done work → REAL git dates (history, not fiction). The SKILL runs
+// `git log --format=%cI -- <sources>`; this parses that output into a
+// start/end range. Timezone-aware (compares by epoch, keeps the original ISO
+// string). Empty/invalid → nulls.
+export function parseGitDates(logOutput) {
+  const lines = String(logOutput || '').split('\n').map(s => s.trim()).filter(Boolean);
+  let start = null, end = null, startT = Infinity, endT = -Infinity;
+  for (const line of lines) {
+    const t = Date.parse(line);
+    if (Number.isNaN(t)) continue;
+    if (t < startT) { startT = t; start = line; }
+    if (t > endT) { endT = t; end = line; }
+  }
+  return { start, end };
+}
+
+// Future work → SEQUENCING ONLY (no fabricated calendar deadlines). Order
+// not-done epics by phase, then by dependsOn (a dep emits before its dependent),
+// and stamp a 1..n `sequence`. Deterministic Kahn's algorithm; deps outside the
+// future set are ignored; a cycle still terminates (falls back to phase order).
+export function sequenceFutureEpics(epics) {
+  const future = (epics || []).filter(e => e && e.status !== 'done');
+  const futureIds = new Set(future.map(e => e.id));
+  const phaseIdx = (e) => { const i = PHASES.indexOf(e.phase); return i === -1 ? PHASES.length : i; };
+  const inputIdx = new Map(future.map((e, i) => [e.id, i]));
+  const pending = new Map(future.map(e => [e.id, new Set((e.dependsOn || []).filter(d => futureIds.has(d) && d !== e.id))]));
+  const byPhaseThenInput = (a, b) => phaseIdx(a) - phaseIdx(b) || inputIdx.get(a.id) - inputIdx.get(b.id);
+  const emitted = [], done = new Set();
+  while (emitted.length < future.length) {
+    const ready = future.filter(e => !done.has(e.id) && [...pending.get(e.id)].every(d => done.has(d)));
+    const pool = ready.length ? ready : future.filter(e => !done.has(e.id)); // cycle → make progress
+    const pick = pool.sort(byPhaseThenInput)[0];
+    emitted.push(pick); done.add(pick.id);
+  }
+  return emitted.map((e, i) => ({ ...e, sequence: i + 1 }));
+}
+
 export function ensureDedicatedEpics(epics) {
   const out = Array.isArray(epics) ? [...epics] : [];
   if (!out.some(e => e && e.type === 'techdebt')) {
@@ -93,6 +131,11 @@ export function normalizeModel(model, { decisions = {} } = {}) {
     epic.priority = derivePriority(epic.phase);
     for (const story of epic.stories || []) story.priority = epic.priority;
   }
+  // Future work: deterministic sequence (phase + deps), no fabricated dates.
+  const seqById = new Map(sequenceFutureEpics(m.backlog.epics).map(e => [e.id, e.sequence]));
+  for (const epic of m.backlog.epics) {
+    if (epic.status !== 'done' && seqById.has(epic.id)) epic.sequence = seqById.get(epic.id);
+  }
   m.planningModel = { phases: PHASES, items: buildPlanningItems(m.knowledgeModel || {}, decisions) };
   return m;
 }
@@ -128,8 +171,11 @@ if (isMain()) {
     } else if (cmd === 'would-change') {
       const model = JSON.parse(readFileSync(file, 'utf8'));
       console.log(normalizeWouldChange(model) ? 'yes' : 'no');
+    } else if (cmd === 'git-dates') {
+      // git-dates <logfile> → { start, end } from `git log --format=%cI -- <sources>`.
+      console.log(JSON.stringify(parseGitDates(readFileSync(file, 'utf8'))));
     } else {
-      console.error('usage: planning-model.mjs <normalize [--write] | would-change> <model.json>');
+      console.error('usage: planning-model.mjs <normalize [--write] | would-change | git-dates> <file>');
       process.exit(2);
     }
   } catch (err) {

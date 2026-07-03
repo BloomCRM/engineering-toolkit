@@ -50,7 +50,18 @@ Resolve paths once:
    default, and rebuilds `planningModel` from the Knowledge Model. The command
    exits non-zero if the normalized model fails validation.
 
-6. **Validate and report.** Run `node "$STORE" validate` (must print `VALID`),
+6. **Timeline (item F).** Two honest sources, never fabricated dates:
+   - **Done epics → real git dates.** For each `epic-done-<id>`, take the
+     matching domain's `sources[]` from the Knowledge Model and run
+     `git log --format=%cI -- <sources>`; pipe the output through
+     `node "$PLAN" git-dates <logfile>` to get `{ start, end }` and stamp them on
+     the epic as `startDate` / `dueDate`. This is history (repo/feature commit
+     range), not fiction. Skip an epic whose sources yield no commits.
+   - **Future epics → sequence only.** `normalize` already stamped a `sequence`
+     (phase + dependsOn order) on every not-done epic. Do **not** invent calendar
+     deadlines for future work — order is the signal, not dates.
+
+7. **Validate and report.** Run `node "$STORE" validate` (must print `VALID`),
    then `node "$STORE" inspect`. Report epics/stories/tasks counts, items per
    phase, and how many bugs / tech-debt items were captured.
 

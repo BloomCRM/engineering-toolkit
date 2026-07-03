@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   PHASES, ensureDedicatedEpics, applyDefaultDoD, buildPlanningItems, normalizeModel,
-  TECH_DEBT_EPIC_ID, BUG_EPIC_ID, derivePriority, deriveEpicStatus, buildDoneEpics
+  TECH_DEBT_EPIC_ID, BUG_EPIC_ID, derivePriority, deriveEpicStatus, buildDoneEpics,
+  parseGitDates, sequenceFutureEpics
 } from '../skills/build-project-model/scripts/planning-model.mjs';
 import { validateModel, DEFAULT_DOD } from '../skills/knowledge-store/scripts/store.mjs';
 
@@ -131,6 +132,83 @@ test('normalizeModel: prepends done-epics and stamps status; still validates', (
   const n = normalizeModel(model);
   assert.ok(n.backlog.epics.some(e => e.id === 'epic-done-bookings' && e.status === 'done'));
   assert.equal(n.backlog.epics.find(e => e.id === 'epic-cal').status, 'todo');
+  assert.deepEqual(validateModel(n), []);
+});
+
+// --- timeline (item F) ---
+test('parseGitDates: min start / max end from ISO commit-date lines', () => {
+  const out = ['2026-06-30T12:00:00+03:00', '2026-06-01T09:00:00+03:00', '2026-06-15T18:00:00+03:00'].join('\n');
+  const { start, end } = parseGitDates(out);
+  assert.equal(start, '2026-06-01T09:00:00+03:00');
+  assert.equal(end, '2026-06-30T12:00:00+03:00');
+});
+
+test('parseGitDates: single commit → start equals end', () => {
+  const { start, end } = parseGitDates('2026-06-10T10:00:00Z');
+  assert.equal(start, '2026-06-10T10:00:00Z');
+  assert.equal(end, '2026-06-10T10:00:00Z');
+});
+
+test('parseGitDates: compares chronologically across timezone offsets', () => {
+  // 2026-06-10T01:00:00+03:00 == 2026-06-09T22:00:00Z is EARLIER than 2026-06-10T00:00:00Z
+  const { start, end } = parseGitDates('2026-06-10T00:00:00Z\n2026-06-10T01:00:00+03:00');
+  assert.equal(start, '2026-06-10T01:00:00+03:00');
+  assert.equal(end, '2026-06-10T00:00:00Z');
+});
+
+test('parseGitDates: empty / whitespace / all-invalid → nulls', () => {
+  assert.deepEqual(parseGitDates(''), { start: null, end: null });
+  assert.deepEqual(parseGitDates('  \n \n'), { start: null, end: null });
+  assert.deepEqual(parseGitDates(null), { start: null, end: null });
+});
+
+test('parseGitDates: ignores blank and unparseable lines', () => {
+  const { start, end } = parseGitDates('\nnot-a-date\n2026-06-05T00:00:00Z\n\n2026-06-20T00:00:00Z\n');
+  assert.equal(start, '2026-06-05T00:00:00Z');
+  assert.equal(end, '2026-06-20T00:00:00Z');
+});
+
+const fe = (id, phase, extra = {}) => ({ id, phase, type: 'feature', title: id, status: 'todo', stories: [], ...extra });
+
+test('sequenceFutureEpics: excludes done epics, orders by phase, stamps sequence 1..n', () => {
+  const seq = sequenceFutureEpics([
+    fe('a', 'Scaling'), fe('done', 'MVP', { status: 'done' }), fe('b', 'MVP'), fe('c', 'Enterprise'),
+  ]);
+  assert.deepEqual(seq.map(e => e.id), ['b', 'a', 'c']); // MVP < Scaling < Enterprise
+  assert.deepEqual(seq.map(e => e.sequence), [1, 2, 3]);
+});
+
+test('sequenceFutureEpics: stable within a phase (input order preserved)', () => {
+  const seq = sequenceFutureEpics([fe('x', 'MVP'), fe('y', 'MVP'), fe('z', 'MVP')]);
+  assert.deepEqual(seq.map(e => e.id), ['x', 'y', 'z']);
+});
+
+test('sequenceFutureEpics: a dependency is emitted before its dependent', () => {
+  const seq = sequenceFutureEpics([fe('a', 'MVP', { dependsOn: ['b'] }), fe('b', 'MVP')]);
+  assert.deepEqual(seq.map(e => e.id), ['b', 'a']);
+});
+
+test('sequenceFutureEpics: deps outside the future set are ignored (no hang)', () => {
+  const seq = sequenceFutureEpics([fe('a', 'MVP', { dependsOn: ['done-x', 'missing'] })]);
+  assert.deepEqual(seq.map(e => e.id), ['a']);
+});
+
+test('sequenceFutureEpics: a dependency cycle still terminates', () => {
+  const seq = sequenceFutureEpics([fe('a', 'MVP', { dependsOn: ['b'] }), fe('b', 'MVP', { dependsOn: ['a'] })]);
+  assert.equal(seq.length, 2);
+  assert.deepEqual(seq.map(e => e.sequence), [1, 2]);
+});
+
+test('normalizeModel: stamps sequence on future epics, not on done epics', () => {
+  const model = {
+    schemaVersion: '1.0',
+    knowledgeModel: { domains: [{ id: 'bookings', name: 'Bookings', status: 'implemented' }], architecture: [], techDebt: [], infrastructure: [], security: [], risks: [] },
+    planningModel: { phases: [], items: [] },
+    backlog: { epics: [{ id: 'epic-cal', trackerKey: null, phase: 'MVP', type: 'feature', title: 'Calendar', stories: [{ id: 's1', trackerKey: null, title: 'Day', acceptanceCriteria: [{ given: 'g', when: 'w', then: 't' }], definitionOfDone: ['code'], tasks: [] }] }] }
+  };
+  const n = normalizeModel(model);
+  assert.equal(n.backlog.epics.find(e => e.id === 'epic-cal').sequence, 1);
+  assert.equal(n.backlog.epics.find(e => e.id === 'epic-done-bookings').sequence, undefined);
   assert.deepEqual(validateModel(n), []);
 });
 
