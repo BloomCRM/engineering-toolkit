@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   PHASES, ensureDedicatedEpics, applyDefaultDoD, buildPlanningItems, normalizeModel,
   TECH_DEBT_EPIC_ID, BUG_EPIC_ID, derivePriority, deriveEpicStatus, buildDoneEpics,
-  parseGitDates, sequenceFutureEpics, countBacklog, checkGranularity
+  parseGitDates, sequenceFutureEpics, countBacklog, checkGranularity, applyDoneEpicDates
 } from '../skills/build-project-model/scripts/planning-model.mjs';
 import { validateModel, DEFAULT_DOD } from '../skills/knowledge-store/scripts/store.mjs';
 
@@ -210,6 +210,45 @@ test('normalizeModel: stamps sequence on future epics, not on done epics', () =>
   assert.equal(n.backlog.epics.find(e => e.id === 'epic-cal').sequence, 1);
   assert.equal(n.backlog.epics.find(e => e.id === 'epic-done-bookings').sequence, undefined);
   assert.deepEqual(validateModel(n), []);
+});
+
+// --- git dates into refresh (F, applied to done epics) ---
+function modelWithDoneEpics() {
+  return { backlog: { epics: [
+    { id: 'epic-done-bookings', type: 'feature', status: 'done', stories: [] },
+    { id: 'epic-done-masters', type: 'feature', status: 'done', stories: [] },
+    { id: 'epic-cal', type: 'feature', status: 'todo', stories: [] },
+  ] } };
+}
+
+test('applyDoneEpicDates: stamps start/due on epic-done-<domain> from the map', () => {
+  const m = applyDoneEpicDates(modelWithDoneEpics(), {
+    bookings: { start: '2026-06-01T00:00:00Z', end: '2026-06-30T00:00:00Z' },
+  });
+  const e = m.backlog.epics.find(x => x.id === 'epic-done-bookings');
+  assert.equal(e.startDate, '2026-06-01T00:00:00Z');
+  assert.equal(e.dueDate, '2026-06-30T00:00:00Z');
+});
+
+test('applyDoneEpicDates: leaves done epics without a map entry untouched', () => {
+  const m = applyDoneEpicDates(modelWithDoneEpics(), { bookings: { start: '2026-06-01T00:00:00Z', end: '2026-06-30T00:00:00Z' } });
+  const masters = m.backlog.epics.find(x => x.id === 'epic-done-masters');
+  assert.equal(masters.startDate, undefined);
+  assert.equal(masters.dueDate, undefined);
+});
+
+test('applyDoneEpicDates: ignores non-done epics and null dates', () => {
+  const m = applyDoneEpicDates(modelWithDoneEpics(), {
+    cal: { start: '2026-01-01T00:00:00Z', end: '2026-02-01T00:00:00Z' },
+    masters: { start: null, end: null },
+  });
+  assert.equal(m.backlog.epics.find(x => x.id === 'epic-cal').startDate, undefined);
+  assert.equal(m.backlog.epics.find(x => x.id === 'epic-done-masters').startDate, undefined);
+});
+
+test('applyDoneEpicDates: empty/absent map returns the model unchanged', () => {
+  const m = applyDoneEpicDates(modelWithDoneEpics(), {});
+  assert.ok(m.backlog.epics.every(e => e.startDate === undefined));
 });
 
 // --- subtask granularity (item H) ---

@@ -58,6 +58,23 @@ export function parseGitDates(logOutput) {
   return { start, end };
 }
 
+// Stamp real git dates onto the done-map epics. `datesById` maps a domain id to
+// { start, end } (from `git log --format=%cI` over its sources, via parseGitDates).
+// Deterministic and id-preserving — safe to run in refresh-model. Only touches
+// `epic-done-<domainId>` epics; null dates and unknown epics are left alone.
+export function applyDoneEpicDates(model, datesById) {
+  const epics = model?.backlog?.epics || [];
+  const map = datesById || {};
+  for (const epic of epics) {
+    if (typeof epic.id !== 'string' || !epic.id.startsWith('epic-done-')) continue;
+    const d = map[epic.id.slice('epic-done-'.length)];
+    if (!d) continue;
+    if (d.start) epic.startDate = d.start;
+    if (d.end) epic.dueDate = d.end;
+  }
+  return model;
+}
+
 // Future work → SEQUENCING ONLY (no fabricated calendar deadlines). Order
 // not-done epics by phase, then by dependsOn (a dep emits before its dependent),
 // and stamp a 1..n `sequence`. Deterministic Kahn's algorithm; deps outside the
@@ -219,12 +236,23 @@ if (isMain()) {
     } else if (cmd === 'git-dates') {
       // git-dates <logfile> → { start, end } from `git log --format=%cI -- <sources>`.
       console.log(JSON.stringify(parseGitDates(readFileSync(file, 'utf8'))));
+    } else if (cmd === 'apply-dates') {
+      // apply-dates <model.json> <dates.json> → stamp done-epic start/due, write in place.
+      // dates.json: { "<domainId>": { "start": "<iso>", "end": "<iso>" }, ... }
+      const model = JSON.parse(readFileSync(file, 'utf8'));
+      const dates = JSON.parse(readFileSync(process.argv[4], 'utf8'));
+      const out = applyDoneEpicDates(model, dates);
+      const errors = validateModel(out);
+      if (errors.length) { console.error('INVALID after apply-dates:\n' + errors.map(e => ' - ' + e).join('\n')); process.exit(1); }
+      writeFileSync(file, JSON.stringify(out, null, 2) + '\n', 'utf8');
+      const n = (out.backlog?.epics || []).filter(e => e.startDate || e.dueDate).length;
+      console.log(`applied git dates to ${n} done epic(s) in ${file}`);
     } else if (cmd === 'granularity') {
       // granularity <model.json> → counts + over-decomposition warnings.
       const model = JSON.parse(readFileSync(file, 'utf8'));
       console.log(JSON.stringify(checkGranularity(model.backlog || model), null, 2));
     } else {
-      console.error('usage: planning-model.mjs <normalize [--write] | would-change | git-dates | granularity> <file>');
+      console.error('usage: planning-model.mjs <normalize [--write] | would-change | git-dates | apply-dates <model> <dates> | granularity> <file>');
       process.exit(2);
     }
   } catch (err) {
