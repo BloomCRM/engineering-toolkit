@@ -10,7 +10,7 @@ when_to_use: |
   "apply priority/done without re-running", "/eng:refresh-model", or after a
   toolkit upgrade that added deterministic structure you want in an existing
   backlog — WITHOUT re-running the agents.
-allowed-tools: Bash(node *)
+allowed-tools: Bash(node *), Bash(git *)
 ---
 
 # refresh-model
@@ -45,20 +45,32 @@ Resolve paths once:
    stamps `priority` (from phase) and epic `status` — while preserving all
    existing ids and trackerKeys. It prints the epic count delta.
 
-3. **Validate and report.** Run `node "$STORE" validate` (must print `VALID`),
-   then `node "$STORE" inspect`. Tell the user exactly what changed: how many
-   Done epics were added, that priority/status were stamped, and that existing
-   ids/trackerKeys were preserved (so the next sync is update-only + the new
-   epics — no duplicates).
+3. **Stamp real git dates on the done epics (item F, deterministic).** For each
+   `implemented` domain in `knowledgeModel.domains`, take its `sources[]` and run
+   `git log --format=%cI -- <sources>`; pipe the output through
+   `node "$PLAN" git-dates <logfile>` to get `{ start, end }`. Collect a map
+   `{ "<domainId>": { start, end }, ... }` into a temp `dates.json`, then apply it
+   in place: `node "$PLAN" apply-dates .eng/project-model.json dates.json`. This
+   stamps `startDate` / `dueDate` on the `epic-done-<domain>` epics from real
+   commit history — no agents, ids preserved. Skip a domain whose sources yield
+   no commits. (Future epics already carry a `sequence` from step 2; never date
+   them.)
 
-4. **Point to the next step.** Recommend `/eng:sync-tracker` (dry-run first) to
-   push the refreshed model — the new Done epics get created, existing issues get
-   priority + discipline tags on update.
+4. **Validate and report.** Run `node "$STORE" validate` (must print `VALID`),
+   then `node "$STORE" inspect`. Tell the user exactly what changed: how many
+   Done epics were added (and dated), that priority/status/sequence were stamped,
+   and that existing ids/trackerKeys were preserved (so the next sync is
+   update-only + the new epics — no duplicates).
+
+5. **Point to the next step.** Recommend `/eng:sync-tracker` (dry-run first) to
+   push the refreshed model — the new Done epics get created (with their git
+   dates), existing issues get priority + discipline tags on update.
 
 ## Rules
 
 - Deterministic only — this skill never runs the reviewer agents and never
   changes any agent-drafted text (so it can't translate to English; that is a
-  separate concern).
+  separate concern). It may read `git log` for done-epic dates — that is
+  deterministic history, not an agent pass.
 - Preserves ids/trackerKeys — that is the whole point; do not regenerate them.
 - Read-then-write the model only; it does not touch the tracker.

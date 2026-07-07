@@ -58,6 +58,23 @@ export function parseGitDates(logOutput) {
   return { start, end };
 }
 
+// Stamp real git dates onto the done-map epics. `datesById` maps a domain id to
+// { start, end } (from `git log --format=%cI` over its sources, via parseGitDates).
+// Deterministic and id-preserving — safe to run in refresh-model. Only touches
+// `epic-done-<domainId>` epics; null dates and unknown epics are left alone.
+export function applyDoneEpicDates(model, datesById) {
+  const epics = model?.backlog?.epics || [];
+  const map = datesById || {};
+  for (const epic of epics) {
+    if (typeof epic.id !== 'string' || !epic.id.startsWith('epic-done-')) continue;
+    const d = map[epic.id.slice('epic-done-'.length)];
+    if (!d) continue;
+    if (d.start) epic.startDate = d.start;
+    if (d.end) epic.dueDate = d.end;
+  }
+  return model;
+}
+
 // Future work → SEQUENCING ONLY (no fabricated calendar deadlines). Order
 // not-done epics by phase, then by dependsOn (a dep emits before its dependent),
 // and stamp a 1..n `sequence`. Deterministic Kahn's algorithm; deps outside the
@@ -122,6 +139,65 @@ export function checkGranularity(backlog, opts = {}) {
       message: `${dense.length} story(ies) exceed ${maxSubtasksPerStory} sub-tasks — consider consolidating.` });
   }
   return { counts, findings };
+}
+
+// --- Additive-draft (enabler for M and I) -----------------------------------
+// A full `build` re-drafts every epic → regenerates ids → duplicates on re-sync.
+// The additive path drafts ONLY new work and appends it, so existing
+// agent-drafted issues (and their ids/trackerKeys) are never touched.
+
+// Which of the given domain ids have NO epic yet (so they need drafting)?
+// A domain is "covered" if an `epic-<id>`, an `epic-done-<id>`, or any epic with
+// `domainRef === id` already exists. Returns the undrafted ones (deduped) with
+// the epic id they should get.
+export function planNewEpics(model, domainIds) {
+  const epics = model?.backlog?.epics || [];
+  const ids = new Set(epics.map(e => e && e.id).filter(Boolean));
+  const refs = new Set(epics.map(e => e && e.domainRef).filter(Boolean));
+  const covered = (d) => ids.has(`epic-${d}`) || ids.has(`epic-done-${d}`) || refs.has(d);
+  const out = [], seen = new Set();
+  for (const d of domainIds || []) {
+    if (!d || seen.has(d) || covered(d)) continue;
+    seen.add(d);
+    out.push({ domainId: d, epicId: `epic-${d}` });
+  }
+  return out;
+}
+
+// Append freshly-drafted epics to the backlog, guarding against id collisions
+// (a colliding id would clobber an existing issue — skip it instead). Stamps
+// `domainRef` if the drafted epic carries one. Returns { model, appended, skipped }.
+export function appendDraftedEpics(model, epics) {
+  const m = model || {};
+  m.backlog = m.backlog && Array.isArray(m.backlog.epics) ? m.backlog : { epics: [] };
+  const existing = new Set(m.backlog.epics.map(e => e && e.id).filter(Boolean));
+  const appended = [], skipped = [];
+  for (const epic of epics || []) {
+    if (!epic || typeof epic.id !== 'string' || !epic.id) { skipped.push(epic && epic.id); continue; }
+    if (existing.has(epic.id)) { skipped.push(epic.id); continue; }
+    existing.add(epic.id);
+    m.backlog.epics.push({ type: 'feature', status: 'todo', stories: [], ...epic });
+    appended.push(epic.id);
+  }
+  return { model: m, appended, skipped };
+}
+
+// Append freshly-drafted stories to an EXISTING epic (e.g. `epic-tech-debt` for
+// security/ux findings), guarding story-id collisions. Unknown epic → all skipped.
+export function appendStoriesToEpic(model, epicId, stories) {
+  const epics = model?.backlog?.epics || [];
+  const epic = epics.find(e => e && e.id === epicId);
+  const appended = [], skipped = [];
+  if (!epic) return { model, appended, skipped: (stories || []).map(s => s && s.id) };
+  if (!Array.isArray(epic.stories)) epic.stories = [];
+  const existing = new Set(epic.stories.map(s => s && s.id).filter(Boolean));
+  for (const story of stories || []) {
+    if (!story || typeof story.id !== 'string' || !story.id || existing.has(story.id)) { skipped.push(story && story.id); continue; }
+    existing.add(story.id);
+    epic.stories.push(story);
+    appended.push(story.id);
+  }
+  return { model, appended, skipped };
 }
 
 export function ensureDedicatedEpics(epics) {
@@ -219,12 +295,46 @@ if (isMain()) {
     } else if (cmd === 'git-dates') {
       // git-dates <logfile> → { start, end } from `git log --format=%cI -- <sources>`.
       console.log(JSON.stringify(parseGitDates(readFileSync(file, 'utf8'))));
+    } else if (cmd === 'apply-dates') {
+      // apply-dates <model.json> <dates.json> → stamp done-epic start/due, write in place.
+      // dates.json: { "<domainId>": { "start": "<iso>", "end": "<iso>" }, ... }
+      const model = JSON.parse(readFileSync(file, 'utf8'));
+      const dates = JSON.parse(readFileSync(process.argv[4], 'utf8'));
+      const out = applyDoneEpicDates(model, dates);
+      const errors = validateModel(out);
+      if (errors.length) { console.error('INVALID after apply-dates:\n' + errors.map(e => ' - ' + e).join('\n')); process.exit(1); }
+      writeFileSync(file, JSON.stringify(out, null, 2) + '\n', 'utf8');
+      const n = (out.backlog?.epics || []).filter(e => e.startDate || e.dueDate).length;
+      console.log(`applied git dates to ${n} done epic(s) in ${file}`);
     } else if (cmd === 'granularity') {
       // granularity <model.json> → counts + over-decomposition warnings.
       const model = JSON.parse(readFileSync(file, 'utf8'));
       console.log(JSON.stringify(checkGranularity(model.backlog || model), null, 2));
+    } else if (cmd === 'plan-new') {
+      // plan-new <model.json> <domainId,domainId,...> → domains needing a new epic.
+      const model = JSON.parse(readFileSync(file, 'utf8'));
+      const domainIds = (process.argv[4] || '').split(',').map(s => s.trim()).filter(Boolean);
+      console.log(JSON.stringify(planNewEpics(model, domainIds), null, 2));
+    } else if (cmd === 'append-epics') {
+      // append-epics <model.json> <epics.json> → append drafted epics in place (collision-guarded).
+      const model = JSON.parse(readFileSync(file, 'utf8'));
+      const epics = JSON.parse(readFileSync(process.argv[4], 'utf8'));
+      const { model: out, appended, skipped } = appendDraftedEpics(model, epics);
+      // Intermediate step — drafted content is pre-normalize (no DoD yet); the
+      // gate is the SKILL's later `normalize` + `store validate`, not here.
+      writeFileSync(file, JSON.stringify(out, null, 2) + '\n', 'utf8');
+      console.log(`appended ${appended.length} epic(s)${skipped.length ? `, skipped ${skipped.length} (id collision): ${skipped.join(', ')}` : ''} — run normalize next`);
+    } else if (cmd === 'append-stories') {
+      // append-stories <model.json> <epicId> <stories.json> → append stories to an existing epic.
+      const model = JSON.parse(readFileSync(file, 'utf8'));
+      const epicId = process.argv[4];
+      const stories = JSON.parse(readFileSync(process.argv[5], 'utf8'));
+      const { model: out, appended, skipped } = appendStoriesToEpic(model, epicId, stories);
+      // Intermediate step — normalize + store validate is the gate (see SKILL).
+      writeFileSync(file, JSON.stringify(out, null, 2) + '\n', 'utf8');
+      console.log(`appended ${appended.length} story(ies) to ${epicId}${skipped.length ? `, skipped ${skipped.filter(Boolean).length}` : ''} — run normalize next`);
     } else {
-      console.error('usage: planning-model.mjs <normalize [--write] | would-change | git-dates | granularity> <file>');
+      console.error('usage: planning-model.mjs <normalize [--write] | would-change | git-dates | apply-dates <model> <dates> | granularity | plan-new <model> <ids> | append-epics <model> <epics>> <file>');
       process.exit(2);
     }
   } catch (err) {

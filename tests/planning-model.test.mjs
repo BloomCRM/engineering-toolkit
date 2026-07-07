@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import {
   PHASES, ensureDedicatedEpics, applyDefaultDoD, buildPlanningItems, normalizeModel,
   TECH_DEBT_EPIC_ID, BUG_EPIC_ID, derivePriority, deriveEpicStatus, buildDoneEpics,
-  parseGitDates, sequenceFutureEpics, countBacklog, checkGranularity
+  parseGitDates, sequenceFutureEpics, countBacklog, checkGranularity, applyDoneEpicDates,
+  planNewEpics, appendDraftedEpics, appendStoriesToEpic
 } from '../skills/build-project-model/scripts/planning-model.mjs';
 import { validateModel, DEFAULT_DOD } from '../skills/knowledge-store/scripts/store.mjs';
 
@@ -210,6 +211,119 @@ test('normalizeModel: stamps sequence on future epics, not on done epics', () =>
   assert.equal(n.backlog.epics.find(e => e.id === 'epic-cal').sequence, 1);
   assert.equal(n.backlog.epics.find(e => e.id === 'epic-done-bookings').sequence, undefined);
   assert.deepEqual(validateModel(n), []);
+});
+
+// --- git dates into refresh (F, applied to done epics) ---
+function modelWithDoneEpics() {
+  return { backlog: { epics: [
+    { id: 'epic-done-bookings', type: 'feature', status: 'done', stories: [] },
+    { id: 'epic-done-masters', type: 'feature', status: 'done', stories: [] },
+    { id: 'epic-cal', type: 'feature', status: 'todo', stories: [] },
+  ] } };
+}
+
+test('applyDoneEpicDates: stamps start/due on epic-done-<domain> from the map', () => {
+  const m = applyDoneEpicDates(modelWithDoneEpics(), {
+    bookings: { start: '2026-06-01T00:00:00Z', end: '2026-06-30T00:00:00Z' },
+  });
+  const e = m.backlog.epics.find(x => x.id === 'epic-done-bookings');
+  assert.equal(e.startDate, '2026-06-01T00:00:00Z');
+  assert.equal(e.dueDate, '2026-06-30T00:00:00Z');
+});
+
+test('applyDoneEpicDates: leaves done epics without a map entry untouched', () => {
+  const m = applyDoneEpicDates(modelWithDoneEpics(), { bookings: { start: '2026-06-01T00:00:00Z', end: '2026-06-30T00:00:00Z' } });
+  const masters = m.backlog.epics.find(x => x.id === 'epic-done-masters');
+  assert.equal(masters.startDate, undefined);
+  assert.equal(masters.dueDate, undefined);
+});
+
+test('applyDoneEpicDates: ignores non-done epics and null dates', () => {
+  const m = applyDoneEpicDates(modelWithDoneEpics(), {
+    cal: { start: '2026-01-01T00:00:00Z', end: '2026-02-01T00:00:00Z' },
+    masters: { start: null, end: null },
+  });
+  assert.equal(m.backlog.epics.find(x => x.id === 'epic-cal').startDate, undefined);
+  assert.equal(m.backlog.epics.find(x => x.id === 'epic-done-masters').startDate, undefined);
+});
+
+test('applyDoneEpicDates: empty/absent map returns the model unchanged', () => {
+  const m = applyDoneEpicDates(modelWithDoneEpics(), {});
+  assert.ok(m.backlog.epics.every(e => e.startDate === undefined));
+});
+
+// --- additive-draft (enabler for M and I: append new work, never re-draft) ---
+function backlogWith(...epics) {
+  return { backlog: { epics: epics.map(e => ({ type: 'feature', status: 'todo', stories: [], ...e })) } };
+}
+
+test('planNewEpics: a domain with no epic is new work to draft', () => {
+  const m = backlogWith({ id: 'epic-bookings' });
+  assert.deepEqual(planNewEpics(m, ['multi-service']), [{ domainId: 'multi-service', epicId: 'epic-multi-service' }]);
+});
+
+test('planNewEpics: a domain already covered by epic-<id> is skipped', () => {
+  const m = backlogWith({ id: 'epic-bookings' });
+  assert.deepEqual(planNewEpics(m, ['bookings']), []);
+});
+
+test('planNewEpics: a domain covered by a done epic (epic-done-<id>) is skipped', () => {
+  const m = backlogWith({ id: 'epic-done-masters', status: 'done' });
+  assert.deepEqual(planNewEpics(m, ['masters']), []);
+});
+
+test('planNewEpics: a domain covered via an epic domainRef is skipped', () => {
+  const m = backlogWith({ id: 'epic-cal', domainRef: 'calendar' });
+  assert.deepEqual(planNewEpics(m, ['calendar']), []);
+});
+
+test('planNewEpics: mixed list returns only the undrafted domains, deduped', () => {
+  const m = backlogWith({ id: 'epic-bookings' }, { id: 'epic-done-masters', status: 'done' });
+  assert.deepEqual(planNewEpics(m, ['bookings', 'masters', 'multi-service', 'multi-service']),
+    [{ domainId: 'multi-service', epicId: 'epic-multi-service' }]);
+});
+
+test('appendDraftedEpics: appends new epics and stamps domainRef, preserving existing', () => {
+  const m = backlogWith({ id: 'epic-bookings' });
+  const r = appendDraftedEpics(m, [{ id: 'epic-multi-service', domainRef: 'multi-service', title: 'Multi-service', stories: [] }]);
+  assert.deepEqual(r.appended, ['epic-multi-service']);
+  assert.deepEqual(r.skipped, []);
+  assert.equal(r.model.backlog.epics.length, 2);
+  assert.ok(r.model.backlog.epics.find(e => e.id === 'epic-bookings')); // untouched
+  assert.equal(r.model.backlog.epics.find(e => e.id === 'epic-multi-service').domainRef, 'multi-service');
+});
+
+test('appendDraftedEpics: skips an epic whose id collides with an existing one (no clobber)', () => {
+  const m = backlogWith({ id: 'epic-bookings', title: 'Original' });
+  const r = appendDraftedEpics(m, [{ id: 'epic-bookings', title: 'Overwrite attempt', stories: [] }]);
+  assert.deepEqual(r.skipped, ['epic-bookings']);
+  assert.deepEqual(r.appended, []);
+  assert.equal(r.model.backlog.epics.length, 1);
+  assert.equal(r.model.backlog.epics[0].title, 'Original'); // not clobbered
+});
+
+test('appendDraftedEpics: empty draft list is a no-op', () => {
+  const m = backlogWith({ id: 'epic-bookings' });
+  const r = appendDraftedEpics(m, []);
+  assert.deepEqual(r.appended, []);
+  assert.equal(r.model.backlog.epics.length, 1);
+});
+
+test('appendStoriesToEpic: appends new stories to an existing epic (e.g. tech-debt), guarding ids', () => {
+  const m = backlogWith({ id: 'epic-tech-debt', type: 'techdebt', stories: [{ id: 'td-old', title: 'Old' }] });
+  const r = appendStoriesToEpic(m, 'epic-tech-debt', [{ id: 'td-sec-1', title: 'Fix secret leak' }, { id: 'td-old', title: 'dup' }]);
+  assert.deepEqual(r.appended, ['td-sec-1']);
+  assert.deepEqual(r.skipped, ['td-old']);
+  const epic = r.model.backlog.epics.find(e => e.id === 'epic-tech-debt');
+  assert.equal(epic.stories.length, 2);
+  assert.equal(epic.stories.find(s => s.id === 'td-old').title, 'Old'); // not clobbered
+});
+
+test('appendStoriesToEpic: unknown epic id skips all stories', () => {
+  const m = backlogWith({ id: 'epic-tech-debt', stories: [] });
+  const r = appendStoriesToEpic(m, 'epic-missing', [{ id: 's1', title: 'x' }]);
+  assert.deepEqual(r.appended, []);
+  assert.deepEqual(r.skipped, ['s1']);
 });
 
 // --- subtask granularity (item H) ---

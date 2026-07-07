@@ -6,6 +6,35 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-07-03
+
+Batch B — make the **non-destructive refresh path deliver more** on a live
+tracker (BLM). Two additions, both id-preserving (no duplicate issues on
+re-sync).
+
+### Added
+- **git dates in `refresh-model` (F into refresh):** `applyDoneEpicDates(model,
+  datesById)` + `apply-dates` CLI stamp real `startDate`/`dueDate` onto
+  `epic-done-<domain>` epics from `git log --format=%cI` over the domain sources.
+  `refresh-model` gained a git-dates step (allowed-tools widened to `git`), so
+  done-epic dates land without agents or re-draft.
+- **`extend-backlog` skill (additive-draft — enables M and I non-destructively):**
+  drafts and appends ONLY new work — planned features found by the completeness
+  critic (M) and ux/security findings (I) — to an existing backlog, never
+  re-drafting existing issues. Backed by `planNewEpics` (undrafted domains),
+  `appendDraftedEpics` (collision-guarded epic append + `domainRef`), and
+  `appendStoriesToEpic` (tech-debt/security stories under an existing epic), with
+  `plan-new` / `append-epics` / `append-stories` CLIs. A full build re-drafts
+  everything and duplicates on re-sync; this appends the delta and syncs
+  creates-only.
+
+### Notes
+- 177 `node:test` cases green; `claude plugin validate --strict` green.
+- 12 skills (added `extend-backlog`).
+- Closes the gap where refresh could not deliver M (multi-service booking) or I
+  (ux/security) to a live board — they now land via `extend-backlog` without the
+  duplicate-on-re-run problem (which otherwise waits on v2.2 stable-ids).
+
 ## [1.0.0] - 2026-07-03
 
 First stable release. Completes the **v2.1 "faithful backlog" quality roadmap**
